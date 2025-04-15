@@ -1,0 +1,1150 @@
+{% extends 'base.html' %}
+
+{% block title %}物资负责人信息 - 消防安全管理系统{% endblock %}
+
+{% block styles %}
+<style>
+    /* 多行文本截断 - 显示3行，超出显示省略号 */
+    .description-cell {
+        max-height: 4.5em;
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        line-clamp: 3;
+        -webkit-box-orient: vertical;
+        line-height: 1.5em;
+        white-space: normal !important;
+        text-overflow: ellipsis;
+        word-break: break-word;
+    }
+    
+    /* 表格样式优化 */
+    .table-responsive {
+        overflow-x: auto;
+    }
+    
+    /* 模态框内容样式 */
+    .modal-body .form-label {
+        margin-bottom: 0.2rem;
+        color: #6c757d;
+    }
+    
+    .modal-body p {
+        margin-bottom: 0.5rem;
+        font-size: 1rem;
+    }
+    
+    /* 适当的间距 */
+    .modal-body .mb-3:last-child {
+        margin-bottom: 0 !important;
+    }
+    
+    /* 确保文本可以自动换行 */
+    .modal-body .p-2 {
+        white-space: pre-line;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2 class="mb-4">物资负责人信息</h2>
+    
+    <!-- 修改搜索筛选区域，与其他页面保持一致 -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="card-title">搜索筛选</h5>
+        </div>
+        <div class="card-body">
+            <!-- 搜索表单 -->
+            <form method="get" action="{{ url_for('admin.responsible') }}" class="row g-3">
+                <!-- 将搜索框和所有按钮放在同一行 -->
+                <div class="col-md-12">
+                    <div class="input-group">
+                        <!-- 搜索输入框 -->
+                        <input type="text" class="form-control" placeholder="搜索任意字段..." name="search" value="{{ current_search or '' }}">
+                        
+                        <!-- 搜索按钮 -->
+                        <button class="btn btn-primary" type="submit">
+                            <i class="bi bi-search"></i> 搜索
+                        </button>
+                        
+                        <!-- 高级筛选按钮放在搜索按钮旁边 -->
+                        <button type="button" class="btn btn-outline-secondary" data-bs-toggle="collapse" 
+                                data-bs-target="#advancedFilters" 
+                                aria-expanded="{{ 'true' if current_area else 'false' }}">
+                            <i class="bi bi-funnel"></i> 高级筛选
+                            {% if current_area %}
+                            <span class="badge bg-primary">已筛选</span>
+                            {% endif %}
+                        </button>
+                        
+                        <!-- 清除筛选按钮 -->
+                        {% if current_search or current_area %}
+                        <a href="{{ url_for('admin.responsible') }}" class="btn btn-secondary">
+                            <i class="bi bi-x-circle"></i> 清除筛选
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- 高级筛选区域 -->
+                <div class="col-12">
+                    <div class="collapse {{ 'show' if current_area else '' }}" id="advancedFilters">
+                        <div class="card card-body mt-3">
+                            <div class="row g-3">
+                                <!-- 区域筛选 -->
+                                <div class="col-md-4">
+                                    <label for="filter_area" class="form-label">设备区域</label>
+                                    <select class="form-select" id="filter_area" name="filter_area">
+                                        <option value="">-- 全部 --</option>
+                                        {% for area in area_list %}
+                                        <option value="{{ area }}" {% if current_area == area %}selected{% endif %}>{{ area }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-3 d-flex justify-content-between">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-filter"></i> 应用筛选
+                                </button>
+                                
+                                <!-- 仅清除高级筛选按钮 -->
+                                {% if current_area %}
+                                <a href="{{ url_for('admin.responsible', search=current_search) }}" class="btn btn-outline-secondary">
+                                    <i class="bi bi-eraser"></i> 仅清除高级筛选
+                                </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span>负责人列表 {% if total_count %}<span class="badge bg-info">{{ total_count }}条记录</span>{% endif %}</span>
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addResponsibleModal">添加负责人</button>
+        </div>
+        <div class="card-body">
+            {% if responsible_persons %}
+            <div class="table-responsive">
+                <table class="table table-striped table-hover table-sm">
+                    <thead>
+                        <tr>
+                            <th style="width: 5%;">ID</th>
+                            <th style="width: 10%;">区域编码</th>
+                            <th style="width: 15%;">区域名称</th>
+                            <th style="width: 15%;">负责人姓名</th>
+                            <th style="width: 20%;">联系电话</th>
+                            <th style="width: 20%;">电子邮件</th>
+                            <th style="width: 15%;">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for person in responsible_persons %}
+                        <tr>
+                            <td>{{ person.id }}</td>
+                            <td>{{ person.area_code }}</td>
+                            <td>{{ person.area_name }}</td>
+                            <td>{{ person.person_name }}</td>
+                            <td>{{ person.contact }}</td>
+                            <td>{{ person.email or '无' }}</td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <button type="button" class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#detailModal-{{ person.id }}">
+                                        详情
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editModal-{{ person.id }}">
+                                        修改
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal"
+                                            data-person-id="{{ person.id }}"
+                                            data-person-name="{{ person.person_name }}"
+                                            data-person-area="{{ person.area_name }}"
+                                            data-person-area-code="{{ person.area_code }}"
+                                            data-person-contact="{{ person.contact }}">
+                                        删除
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                
+                <!-- 修改分页控件，统一参数传递方式 -->
+                {% if pagination and pagination.pages > 1 %}
+                <nav aria-label="数据分页">
+                    <ul class="pagination justify-content-center">
+                        <!-- 第一页按钮 -->
+                        <li class="page-item {% if pagination.page == 1 %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('admin.responsible', page=1, search=current_search, filter_area=current_area) if pagination.page != 1 else '#' }}" aria-label="第一页">
+                                <span aria-hidden="true">&laquo;&laquo;</span>
+                            </a>
+                        </li>
+                        
+                        <!-- 上一页按钮 -->
+                        <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('admin.responsible', page=pagination.prev_num, search=current_search, filter_area=current_area) if pagination.has_prev else '#' }}" aria-label="上一页">
+                                <span aria-hidden="true">&laquo;</span>
+                            </a>
+                        </li>
+                        
+                        <!-- 页码 -->
+                        {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                            {% if p %}
+                                {% if p == pagination.page %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ p }}</span>
+                                </li>
+                                {% else %}
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('admin.responsible', page=p, search=current_search, filter_area=current_area) }}">{{ p }}</a>
+                                </li>
+                                {% endif %}
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        <!-- 下一页按钮 -->
+                        <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('admin.responsible', page=pagination.next_num, search=current_search, filter_area=current_area) if pagination.has_next else '#' }}" aria-label="下一页">
+                                <span aria-hidden="true">&raquo;</span>
+                            </a>
+                        </li>
+                        
+                        <!-- 最后一页按钮 -->
+                        <li class="page-item {% if pagination.page == pagination.pages %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('admin.responsible', page=pagination.pages, search=current_search, filter_area=current_area) if pagination.page != pagination.pages else '#' }}" aria-label="最后一页">
+                                <span aria-hidden="true">&raquo;&raquo;</span>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+                <div class="text-center text-muted mt-2">
+                    <small>显示 {{ pagination.total }} 条记录中的第 {{ pagination.page }} 页（共 {{ pagination.pages }} 页）</small>
+                </div>
+                {% endif %}
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                暂无负责人信息数据。
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- 详情模态框 -->
+{% for person in responsible_persons %}
+<div class="modal fade" id="detailModal-{{ person.id }}" tabindex="-1" aria-labelledby="detailModalLabel-{{ person.id }}" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="detailModalLabel-{{ person.id }}">负责人详细信息</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-12">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">ID</label>
+                            <p>{{ person.id }}</p>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">区域编码</label>
+                            <p>{{ person.area_code }}</p>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">区域名称</label>
+                            <p>{{ person.area_name }}</p>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">负责人姓名</label>
+                            <p>{{ person.person_name }}</p>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">联系电话</label>
+                            <p>{{ person.contact }}</p>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">电子邮箱</label>
+                            <p>{{ person.email if person.email else '无' }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<!-- 编辑模态框 -->
+{% for person in responsible_persons %}
+<div class="modal fade" id="editModal-{{ person.id }}" tabindex="-1" aria-labelledby="editModalLabel-{{ person.id }}" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-white">
+                <h5 class="modal-title" id="editModalLabel-{{ person.id }}">编辑负责人信息</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <form method="POST" action="{{ url_for('admin.edit_responsible', person_id=person.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <!-- 添加隐藏字段保存区域编码和区域名称，以便表单提交时传递这些不可修改的值 -->
+                <input type="hidden" name="area_code" value="{{ person.area_code }}">
+                <input type="hidden" name="area_name" value="{{ person.area_name }}">
+                
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="edit_area_code_{{ person.id }}" class="form-label">区域编码</label>
+                                <input type="text" class="form-control bg-light" id="edit_area_code_{{ person.id }}" value="{{ person.area_code }}" readonly>
+                                <small class="form-text text-muted">区域编码不可修改</small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="edit_area_name_{{ person.id }}" class="form-label">区域名称</label>
+                                <input type="text" class="form-control bg-light" id="edit_area_name_{{ person.id }}" value="{{ person.area_name }}" readonly>
+                                <small class="form-text text-muted">区域名称不可修改</small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="edit_person_name_{{ person.id }}" class="form-label">负责人姓名 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="edit_person_name_{{ person.id }}" name="person_name" required value="{{ person.person_name }}">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="edit_contact_{{ person.id }}" class="form-label">联系电话 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="edit_contact_{{ person.id }}" name="contact" required value="{{ person.contact }}">
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="mb-3">
+                                <label for="edit_email_{{ person.id }}" class="form-label">电子邮箱</label>
+                                <input type="email" class="form-control" id="edit_email_{{ person.id }}" name="email" value="{{ person.email or '' }}">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save"></i> 保存修改
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<!-- 删除确认模态框 -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteModalLabel">确认删除</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <strong>警告：此操作不可恢复！</strong>
+                </div>
+                <p>您确定要删除以下负责人信息吗？</p>
+                <table class="table table-sm table-bordered">
+                    <tr>
+                        <th style="width: 30%">负责人ID</th>
+                        <td><span id="deletePersonId"></span></td>
+                    </tr>
+                    <tr>
+                        <th>区域编码</th>
+                        <td><span id="deletePersonAreaCode"></span></td>
+                    </tr>
+                    <tr>
+                        <th>区域名称</th>
+                        <td><span id="deletePersonArea"></span></td>
+                    </tr>
+                    <tr>
+                        <th>负责人姓名</th>
+                        <td class="fw-bold text-danger"><span id="deletePersonName"></span></td>
+                    </tr>
+                    <tr>
+                        <th>联系电话</th>
+                        <td><span id="deletePersonContact"></span></td>
+                    </tr>
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <form id="deleteForm" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash"></i> 确认删除
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 修改添加负责人模态框中的区域编码输入字段，添加验证和错误提示 -->
+<div class="modal fade" id="addResponsibleModal" tabindex="-1" aria-labelledby="addResponsibleModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="addResponsibleModalLabel">添加负责人信息</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <form id="addResponsibleForm" method="POST" action="{{ url_for('admin.add_responsible') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="modal-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="area_code" class="form-label">区域编码 <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="area_code" name="area_code" min="1" max="100" required>
+                                <div class="invalid-feedback" id="area_code_feedback">请输入1-100之间的整数</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="area_name" class="form-label">区域名称 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="area_name" name="area_name" required>
+                                <!-- 替换提示文本为空 -->
+                                <div class="form-text text-muted" id="area_name_hint"></div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="person_name" class="form-label">负责人姓名 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="person_name" name="person_name" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="contact" class="form-label">联系电话 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="contact" name="contact" required>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="mb-3">
+                                <label for="email" class="form-label">电子邮箱</label>
+                                <input type="email" class="form-control" id="email" name="email">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> 添加负责人
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 简化筛选控制逻辑，使用Bootstrap的内置折叠功能
+        const advancedFilters = document.getElementById('advancedFilters');
+        const filterToggleBtn = document.querySelector('[data-bs-target="#advancedFilters"]');
+        
+        if (advancedFilters && filterToggleBtn) {
+            // 检查URL参数，决定初始状态
+            const urlParams = new URLSearchParams(window.location.search);
+            const hasFilterArea = urlParams.has('filter_area');
+            
+            // 有筛选条件时，显示筛选区域
+            if (hasFilterArea) {
+                try {
+                    // 使用Bootstrap的折叠API
+                    const bsCollapse = new bootstrap.Collapse(advancedFilters, {
+                        toggle: false
+                    });
+                    bsCollapse.show();
+                    
+                    // 更新按钮状态
+                    filterToggleBtn.setAttribute('aria-expanded', 'true');
+                } catch (e) {
+                    console.error('Bootstrap折叠API错误:', e);
+                    // 回退到直接DOM操作
+                    advancedFilters.classList.add('show');
+                }
+            }
+            
+            // 为筛选按钮添加点击事件监听器，确保能手动切换
+            filterToggleBtn.addEventListener('click', function() {
+                const isExpanded = this.getAttribute('aria-expanded') === 'true';
+                this.setAttribute('aria-expanded', !isExpanded);
+            });
+        }
+        
+        // 删除确认模态框数据绑定
+        const deleteModal = document.getElementById('deleteModal');
+        if (deleteModal) {
+            deleteModal.addEventListener('show.bs.modal', function(event) {
+                // 获取触发按钮
+                const button = event.relatedTarget;
+                if (!button) return;
+                
+                // 从按钮的data属性中获取信息
+                const personId = button.getAttribute('data-person-id') || '';
+                const personName = button.getAttribute('data-person-name') || '';
+                const personArea = button.getAttribute('data-person-area') || '';
+                const personAreaCode = button.getAttribute('data-person-area-code') || '';
+                const personContact = button.getAttribute('data-person-contact') || '';
+                
+                // 更新模态框中的内容
+                document.getElementById('deletePersonId').textContent = personId;
+                document.getElementById('deletePersonName').textContent = personName;
+                document.getElementById('deletePersonArea').textContent = personArea;
+                document.getElementById('deletePersonAreaCode').textContent = personAreaCode || '无';
+                document.getElementById('deletePersonContact').textContent = personContact || '无';
+                
+                // 设置表单的action
+                const deleteForm = document.getElementById('deleteForm');
+                if (deleteForm && personId) {
+                    deleteForm.action = "{{ url_for('admin.delete_responsible', person_id=0) }}".replace('0', personId);
+                }
+            });
+        }
+        
+        // 添加区域编码检查和区域名称自动填充功能 - 修改此部分逻辑
+        const addAreaCodeInput = document.getElementById('area_code');
+        const addAreaNameInput = document.getElementById('area_name');
+        const areaCodeStatus = document.getElementById('area_code_status');
+        const areaNameHint = document.getElementById('area_name_hint');
+        
+        // 记录元素状态，便于调试
+        console.log("区域编码输入框:", addAreaCodeInput ? "已找到" : "未找到");
+        console.log("区域名称输入框:", addAreaNameInput ? "已找到" : "未找到");
+        
+        // 已知区域编码和名称的映射 - 确保使用全局变量
+        window.areaMapping = {};
+        
+        // 从现有数据中预加载区域映射 - 重写这部分以确保数据正确加载
+        {% for person in responsible_persons %}
+            // 确保数据不为空
+            if ("{{ person.area_code|default('') }}" && "{{ person.area_name|default('') }}") {
+                window.areaMapping["{{ person.area_code|e }}"] = "{{ person.area_name|e }}";
+                console.log("加载映射: {{ person.area_code }} -> {{ person.area_name }}");
+            }
+        {% endfor %}
+        
+        // 从管理员API获取所有区域数据以扩充映射
+        fetch('/admin/api/all_areas')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.areas) {
+                    data.areas.forEach(area => {
+                        if (area.code && area.name) {
+                            window.areaMapping[area.code] = area.name;
+                        }
+                    });
+                    console.log("通过API加载的区域映射:", Object.keys(window.areaMapping).length);
+                }
+            })
+            .catch(error => console.error("加载区域数据失败:", error));
+        
+        console.log("初始化时的区域映射:", Object.keys(window.areaMapping).length, window.areaMapping);
+        
+        // 确保输入框存在且正确绑定事件
+        if (addAreaCodeInput && addAreaNameInput) {
+            console.log("开始绑定区域编码输入事件");
+            
+            // 单独使用input事件进行绑定，确保能检测到变化
+            addAreaCodeInput.addEventListener('input', function(e) {
+                handleAreaCodeChange(this.value.trim());
+            });
+            
+            // 添加焦点离开事件，尝试从API获取
+            addAreaCodeInput.addEventListener('blur', function(e) {
+                const areaCode = this.value.trim();
+                checkAreaCodeFromAPI(areaCode);
+            });
+            
+            // 手动触发一次检查，处理页面重新加载但输入框已有值的情况
+            setTimeout(() => {
+                if (addAreaCodeInput.value.trim()) {
+                    handleAreaCodeChange(addAreaCodeInput.value.trim());
+                }
+            }, 500);
+        } else {
+            console.error("未找到区域编码或区域名称输入框!");
+        }
+        
+        // 区域编码变化处理函数
+        function handleAreaCodeChange(areaCode) {
+            console.log("区域编码变化:", areaCode);
+            
+            // 重置状态
+            areaCodeStatus.textContent = '';
+            areaCodeStatus.className = 'form-text';
+            
+            if (!areaCode) {
+                // 区域编码为空，重置区域名称输入框
+                addAreaNameInput.value = '';
+                addAreaNameInput.removeAttribute('readonly');
+                addAreaNameInput.classList.remove('bg-light');
+                areaNameHint.textContent = '';  // 清空提示文本
+                return;
+            }
+            
+            // 检查区域编码是否已存在于负责人表中 (唯一性检查)
+            fetch(`/admin/api/check_responsible_area_code/${encodeURIComponent(areaCode)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.exists) {
+                        // 已存在相同区域编码的负责人
+                        areaCodeStatus.textContent = '此区域编码已存在';
+                        areaCodeStatus.className = 'form-text text-danger';
+                    } else {
+                        // 区域编码可用
+                        areaCodeStatus.textContent = '区域编码可用';
+                        areaCodeStatus.className = 'form-text text-success';
+                        
+                        // 如果已映射中有此编码，提供名称建议（但不强制）
+                        if (window.areaMapping[areaCode]) {
+                            addAreaNameInput.value = window.areaMapping[areaCode];
+                            areaNameHint.textContent = '已填入建议区域名称，可按需修改';
+                            areaNameHint.className = 'form-text text-info';
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error("检查区域编码唯一性失败:", error);
+                });
+            
+            // ...existing code for API lookup of area info...
+        }
+        
+        // 从API检查区域编码
+        function checkAreaCodeFromAPI(areaCode) {
+            if (!areaCode) return;
+            // 即使在映射中找到了也继续查询，以便获取最新数据
+            
+            console.log("从API检查区域编码:", areaCode);
+            
+            // 显示加载状态
+            areaCodeStatus.textContent = '正在查询...';
+            areaCodeStatus.className = 'form-text text-info';
+            
+            fetch(`/admin/api/area_by_code/${encodeURIComponent(areaCode)}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP错误 ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log("API返回数据:", data);
+                    
+                    if (data.success && data.exists) {
+                        // 更新映射
+                        window.areaMapping[areaCode] = data.area_name;
+                        
+                        // 建议填充区域名称，但不再设为只读
+                        addAreaNameInput.value = data.area_name;
+                        addAreaNameInput.removeAttribute('readonly'); // 允许编辑
+                        addAreaNameInput.classList.remove('bg-light');
+                        
+                        // 更新状态
+                        areaCodeStatus.textContent = '已找到对应区域(API)，您可以使用建议值或修改它';
+                        areaCodeStatus.className = 'form-text text-info';
+                        areaNameHint.textContent = '已提供建议值，您可以根据需要修改';
+                    } else {
+                        // API查询无结果
+                        areaCodeStatus.textContent = '未找到对应区域，请自行输入区域名称';
+                        areaCodeStatus.className = 'form-text text-warning';
+                    }
+                })
+                .catch(error => {
+                    console.error("API查询失败:", error);
+                    areaCodeStatus.textContent = '查询失败，请手动输入区域名称';
+                    areaCodeStatus.className = 'form-text text-danger';
+                });
+        }
+        
+        // 修改添加负责人表单提交前验证 - 添加唯一性检查
+        const addResponsibleForm = document.getElementById('addResponsibleForm');
+        if (addResponsibleForm) {
+            addResponsibleForm.addEventListener('submit', function(e) {
+                const areaCode = document.getElementById('area_code').value.trim();
+                const areaName = document.getElementById('area_name').value.trim();
+                
+                // 检查区域编码状态
+                const areaCodeStatus = document.getElementById('area_code_status');
+                if (areaCodeStatus && areaCodeStatus.className.includes('text-danger')) {
+                    e.preventDefault();
+                    alert('区域编码已存在，请使用其他区域编码');
+                    return;
+                }
+                
+                // 仅验证必填项非空
+                if (!areaCode || !areaName) {
+                    e.preventDefault();
+                    alert('区域编码和区域名称为必填项');
+                    return;
+                }
+            });
+        }
+        
+        // 处理模态框重置，确保在模态框关闭时清理状态
+        const addResponsibleModal = document.getElementById('addResponsibleModal');
+        if (addResponsibleModal) {
+            addResponsibleModal.addEventListener('hidden.bs.modal', function() {
+                if (addAreaCodeInput) addAreaCodeInput.value = '';
+                if (addAreaNameInput) {
+                    addAreaNameInput.value = '';
+                    addAreaNameInput.removeAttribute('readonly');
+                    addAreaNameInput.classList.remove('bg-light');
+                }
+                if (areaCodeStatus) {
+                    areaCodeStatus.textContent = '';
+                    areaCodeStatus.className = 'form-text';
+                }
+                if (areaNameHint) {
+                    areaNameHint.textContent = '';
+                }
+                
+                // 重置其他字段
+                document.getElementById('person_name')?.value = '';
+                document.getElementById('contact')?.value = '';
+                document.getElementById('email')?.value = '';
+            });
+        }
+        
+        // 添加负责人按钮单独处理，确保模态框正确初始化
+        const addResponsibleBtn = document.getElementById('add-responsible-btn');
+        if (addResponsibleBtn && addResponsibleModal) {
+            addResponsibleBtn.addEventListener('click', function() {
+                // 使用Bootstrap API打开模态框
+                try {
+                    const modal = new bootstrap.Modal(addResponsibleModal);
+                    modal.show();
+                    
+                    // 确保模态框打开后输入框是干净的
+                    setTimeout(function() {
+                        if (document.getElementById('area_code')) {
+                            document.getElementById('area_code').value = '';
+                            document.getElementById('area_code').dispatchEvent(new Event('input'));
+                        }
+                        if (document.getElementById('area_name')) {
+                            document.getElementById('area_name').value = '';
+                            document.getElementById('area_name').removeAttribute('readonly');
+                            document.getElementById('area_name').classList.remove('bg-light');
+                        }
+                    }, 300);
+                } catch (e) {
+                    console.error("打开模态框出错:", e);
+                    // 如果API不可用，尝试直接操作DOM
+                    addResponsibleModal.classList.add('show');
+                    addResponsibleModal.style.display = 'block';
+                    document.body.classList.add('modal-open');
+                    
+                    // 添加背景遮罩
+                    const backdrop = document.createElement('div');
+                    backdrop.className = 'modal-backdrop fade show';
+                    document.body.appendChild(backdrop);
+                }
+            });
+        }
+        
+        // 确保模态框正确初始化
+        // 获取模态框元素
+        console.log("文档已加载，开始初始化...");
+        console.log("查找模态框元素:", addResponsibleModal ? "找到" : "未找到");
+        
+        // 尝试手动初始化模态框
+        if (addResponsibleModal) {
+            try {
+                // 确保Bootstrap的Modal类存在
+                if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                    console.log("Bootstrap Modal 类可用");
+                    const modal = new bootstrap.Modal(addResponsibleModal);
+                    
+                    // 修复: 添加事件监听器以在模态框显示前重置表单
+                    addResponsibleModal.addEventListener('show.bs.modal', function() {
+                        console.log("模态框显示事件触发");
+                        
+                        // 重置表单字段
+                        if (addAreaCodeInput) addAreaCodeInput.value = '';
+                        if (addAreaNameInput) {
+                            addAreaNameInput.value = '';
+                            addAreaNameInput.removeAttribute('readonly');
+                            addAreaNameInput.classList.remove('bg-light');
+                        }
+                        
+                        // 重置其他表单字段
+                        document.getElementById('person_name')?.value = '';
+                        document.getElementById('contact')?.value = '';
+                        document.getElementById('email')?.value = '';
+                        
+                        // 重置状态提示
+                        if (areaCodeStatus) {
+                            areaCodeStatus.textContent = '';
+                            areaCodeStatus.className = 'form-text';
+                        }
+                        
+                        if (areaNameHint) {
+                            areaNameHint.textContent = '';
+                        }
+                    });
+                    
+                    // 额外的兼容性代码：监听按钮点击以手动打开模态框
+                    document.querySelectorAll('[data-bs-target="#addResponsibleModal"]').forEach(function(btn) {
+                        btn.addEventListener('click', function(e) {
+                            console.log("添加负责人按钮被点击");
+                            try {
+                                modal.show();
+                                console.log("已尝试显示模态框");
+                            } catch (err) {
+                                console.error("显示模态框时出错:", err);
+                                
+                                // 降级方案：直接操作DOM
+                                addResponsibleModal.classList.add('show');
+                                addResponsibleModal.style.display = 'block';
+                                addResponsibleModal.setAttribute('aria-modal', 'true');
+                                addResponsibleModal.setAttribute('role', 'dialog');
+                                document.body.classList.add('modal-open');
+                                
+                                // 添加背景遮罩
+                                const backdrop = document.createElement('div');
+                                backdrop.className = 'modal-backdrop fade show';
+                                document.body.appendChild(backdrop);
+                            }
+                        });
+                    });
+                } else {
+                    console.warn("警告: Bootstrap Modal 类不可用!");
+                }
+            } catch (e) {
+                console.error("初始化模态框时出错:", e);
+            }
+        } else {
+            console.error("错误: 未找到添加负责人模态框元素!");
+        }
+    });
+</script>
+
+<!-- 添加直接引用Bootstrap脚本的备份，以确保可用性 -->
+<script>
+    // 检查是否已经加载了Bootstrap
+    if (typeof bootstrap === 'undefined' || !bootstrap.Modal) {
+        console.warn("尝试手动加载Bootstrap...");
+        
+        // 创建并添加Bootstrap脚本
+        const script = document.createElement('script');
+        script.src = "https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js";
+        script.integrity = "sha384-ka7Sk0Gln4gmtz2MlQnikT1wXgYsOg+OMhuP+IlRH9sENBO0LRn5q+8nbTov4+1p";
+        script.crossOrigin = "anonymous";
+        script.onload = function() {
+            console.log("Bootstrap已手动加载，尝试初始化模态框");
+            const addResponsibleModal = document.getElementById('addResponsibleModal');
+            if (addResponsibleModal && bootstrap && bootstrap.Modal) {
+                const modal = new bootstrap.Modal(addResponsibleModal);
+                
+                // 自动绑定按钮点击事件
+                document.querySelectorAll('[data-bs-target="#addResponsibleModal"]').forEach(function(btn) {
+                    btn.addEventListener('click', function() {
+                        modal.show();
+                    });
+                });
+            }
+        };
+        document.head.appendChild(script);
+    }
+</script>
+
+<!-- 修复删除按钮和模态框的数据绑定问题 -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 修复删除确认模态框数据绑定 - 完全重写这一部分
+        const deleteModal = document.getElementById('deleteModal');
+        if (deleteModal) {
+            deleteModal.addEventListener('show.bs.modal', function(event) {
+                // 获取触发按钮 - 使用正确的事件属性
+                const button = event.relatedTarget;
+                console.log("删除按钮被点击:", button);
+                
+                if (!button) {
+                    console.error("未能获取触发按钮!");
+                    return;
+                }
+                
+                // 确保从按钮的data属性中获取信息 - 添加调试日志
+                const personId = button.getAttribute('data-person-id');
+                const personName = button.getAttribute('data-person-name');
+                const personArea = button.getAttribute('data-person-area');
+                const personAreaCode = button.getAttribute('data-person-area-code');
+                const personContact = button.getAttribute('data-person-contact');
+                
+                console.log("获取到的负责人数据:", {
+                    id: personId,
+                    name: personName,
+                    area: personArea,
+                    areaCode: personAreaCode,
+                    contact: personContact
+                });
+                
+                // 更新模态框中的内容
+                document.getElementById('deletePersonId').textContent = personId || '未知';
+                document.getElementById('deletePersonName').textContent = personName || '未知';
+                document.getElementById('deletePersonArea').textContent = personArea || '未知';
+                document.getElementById('deletePersonAreaCode').textContent = personAreaCode || '无';
+                document.getElementById('deletePersonContact').textContent = personContact || '无';
+                
+                // 设置表单的action - 确保ID正确设置
+                const deleteForm = document.getElementById('deleteForm');
+                if (deleteForm && personId) {
+                    const actionUrl = "{{ url_for('admin.delete_responsible', person_id=0) }}".replace('0', personId);
+                    deleteForm.action = actionUrl;
+                    console.log("设置删除表单action:", actionUrl);
+                } else {
+                    console.error("未能设置删除表单action! form存在:", !!deleteForm, "personId:", personId);
+                }
+            });
+        } else {
+            console.error("未找到删除模态框元素!");
+        }
+        
+        // 添加一个全局点击事件监听，确保删除按钮点击被捕获
+        document.addEventListener('click', function(event) {
+            // 检查点击的是否是删除按钮
+            if (event.target.closest('button[data-bs-target="#deleteModal"]')) {
+                const button = event.target.closest('button[data-bs-target="#deleteModal"]');
+                console.log("通过全局监听捕获到删除按钮点击:", button);
+                
+                // 如果有必要，可以手动触发模态框
+                if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                    const deleteModalElement = document.getElementById('deleteModal');
+                    if (deleteModalElement) {
+                        // 存储按钮引用，以便模态框事件处理程序可以访问它
+                        deleteModalElement._relatedTarget = button;
+                        
+                        // 手动触发模态框
+                        const deleteModal = new bootstrap.Modal(deleteModalElement);
+                        deleteModal.show();
+                        
+                        // 手动触发show.bs.modal事件
+                        const showEvent = new CustomEvent('show.bs.modal', {
+                            bubbles: true,
+                            cancelable: true,
+                            detail: { relatedTarget: button }
+                        });
+                        deleteModalElement.dispatchEvent(showEvent);
+                    }
+                }
+            }
+        });
+    });
+</script>
+
+<!-- 添加备用初始化代码，确保Bootstrap正确处理模态框事件 -->
+<script>
+    // 确保所有模态框正确初始化
+    document.addEventListener('DOMContentLoaded', function() {
+        // 查找所有模态框并初始化它们
+        document.querySelectorAll('.modal').forEach(function(modalElement) {
+            if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                try {
+                    // 尝试初始化模态框
+                    new bootstrap.Modal(modalElement);
+                } catch (error) {
+                    console.warn(`初始化模态框 ${modalElement.id} 失败:`, error);
+                }
+            }
+        });
+        
+        // 确保删除按钮点击事件处理正确
+        document.querySelectorAll('button[data-bs-target="#deleteModal"]').forEach(function(button) {
+            button.addEventListener('click', function(e) {
+                const personId = this.getAttribute('data-person-id');
+                const personName = this.getAttribute('data-person-name');
+                const personArea = this.getAttribute('data-person-area');
+                const personAreaCode = this.getAttribute('data-person-area-code');
+                const personContact = this.getAttribute('data-person-contact');
+                
+                console.log("删除按钮直接点击事件, 数据:", {
+                    id: personId,
+                    name: personName,
+                    area: personArea,
+                    areaCode: personAreaCode,
+                    contact: personContact
+                });
+                
+                // 手动设置删除表单数据
+                document.getElementById('deletePersonId').textContent = personId || '未知';
+                document.getElementById('deletePersonName').textContent = personName || '未知';
+                document.getElementById('deletePersonArea').textContent = personArea || '未知';
+                document.getElementById('deletePersonAreaCode').textContent = personAreaCode || '无';
+                document.getElementById('deletePersonContact').textContent = personContact || '无';
+                
+                // 手动设置表单action
+                const deleteForm = document.getElementById('deleteForm');
+                if (deleteForm && personId) {
+                    deleteForm.action = "{{ url_for('admin.delete_responsible', person_id=0) }}".replace('0', personId);
+                }
+                
+                // 不阻止默认行为，让Bootstrap正常处理模态框显示
+            });
+        });
+    });
+</script>
+
+<!-- 修复 JS 表达式错误的按钮点击事件处理 -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.delete-permission-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            // 获取权限 ID
+            const permissionId = this.getAttribute('data-permission-id');
+            
+            // 设置删除表单的 action URL
+            const deletePermissionForm = document.getElementById('deletePermissionForm');
+            if (deletePermissionForm) {
+                deletePermissionForm.action = `/admin/delete_permission/${permissionId}`;
+            }
+            
+            // 更新确认模态框中的权限信息显示
+            const permissionDetails = document.getElementById('permission-details');
+            if (permissionDetails) {
+                permissionDetails.innerHTML = `
+                    <p><strong>操作类型:</strong> ${this.getAttribute('data-operation-type') || '未知'}</p>
+                    <p><strong>区域:</strong> ${this.getAttribute('data-area-name') || '未知'}</p>
+                `;
+            }
+            
+            // 显示模态框
+            const modal = new bootstrap.Modal(document.getElementById('deletePermissionModal'));
+            modal.show();
+        });
+    });
+});
+</script>
+
+<!-- 添加JavaScript验证代码 -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // 获取表单元素
+  const addResponsibleForm = document.getElementById('addResponsibleForm');
+  const areaCodeInput = document.getElementById('area_code');
+  const areaCodeFeedback = document.getElementById('area_code_feedback');
+  
+  if (addResponsibleForm && areaCodeInput) {
+    // 当区域编码输入值变化时进行验证
+    areaCodeInput.addEventListener('input', function() {
+      validateAreaCode();
+    });
+    
+    // 表单提交前验证
+    addResponsibleForm.addEventListener('submit', function(e) {
+      // 验证区域编码
+      if (!validateAreaCode()) {
+        e.preventDefault();
+        return false;
+      }
+      
+      // 检查区域编码是否已存在
+      checkAreaCodeExists(areaCodeInput.value, function(exists) {
+        if (exists) {
+          // 区域编码已存在，显示错误提示
+          areaCodeInput.classList.add('is-invalid');
+          areaCodeFeedback.textContent = '该区域已有负责人，不能重复添加同一区域编码的负责人信息，请重新输入';
+          e.preventDefault();
+          return false;
+        } else {
+          // 区域编码不存在，可以提交表单
+          areaCodeInput.classList.remove('is-invalid');
+          return true;
+        }
+      });
+      
+      e.preventDefault(); // 先阻止表单提交，等待AJAX检查完成
+    });
+    
+    // 验证区域编码是否在1-100之间的整数
+    function validateAreaCode() {
+      const value = areaCodeInput.value.trim();
+      const areaCode = parseInt(value);
+      
+      // 检查是否为空
+      if (!value) {
+        areaCodeInput.classList.add('is-invalid');
+        areaCodeFeedback.textContent = '区域编码不能为空';
+        return false;
+      }
+      
+      // 检查是否为数字
+      if (isNaN(areaCode)) {
+        areaCodeInput.classList.add('is-invalid');
+        areaCodeFeedback.textContent = '区域编码必须为数字';
+        return false;
+      }
+      
+      // 检查是否为整数
+      if (areaCode !== parseFloat(value)) {
+        areaCodeInput.classList.add('is-invalid');
+        areaCodeFeedback.textContent = '区域编码必须为整数';
+        return false;
+      }
+      
+      // 检查范围是否在1-100之间
+      if (areaCode < 1 || areaCode > 100) {
+        areaCodeInput.classList.add('is-invalid');
+        areaCodeFeedback.textContent = '区域编码必须在1-100之间';
+        return false;
+      }
+      
+      // 验证通过
+      areaCodeInput.classList.remove('is-invalid');
+      return true;
+    }
+    
+    // 使用AJAX检查区域编码是否已存在
+    function checkAreaCodeExists(areaCode, callback) {
+      // 创建AJAX请求检查区域编码是否存在
+      fetch(`/admin/check_area_code?area_code=${areaCode}`)
+        .then(response => response.json())
+        .then(data => {
+          if (data.exists) {
+            callback(true); // 区域编码已存在
+          } else {
+            callback(false); // 区域编码不存在，可以使用
+            // 提交表单
+            if (validateAreaCode()) {
+              addResponsibleForm.submit();
+            }
+          }
+        })
+        .catch(error => {
+          console.error('检查区域编码出错:', error);
+          callback(false); // 出错时假设不存在，让后端再次验证
+          if (validateAreaCode()) {
+            addResponsibleForm.submit();
+          }
+        });
+    }
+  }
+});
+</script>
+{% endblock %}

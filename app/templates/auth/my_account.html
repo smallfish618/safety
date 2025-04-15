@@ -1,0 +1,406 @@
+{% extends 'base.html' %}
+
+{% block title %}我的账户 - 消防安全管理系统{% endblock %}
+
+{% block styles %}
+<style>
+    .card-header-tab {
+        border-bottom: 0;
+        padding-bottom: 0;
+    }
+    
+    .card-body-tab {
+        padding-top: 0;
+    }
+    
+    .nav-tabs .nav-link {
+        margin-bottom: 0;
+    }
+    
+    .permission-badge {
+        margin-right: 5px;
+        margin-bottom: 5px;
+    }
+    
+    .permission-card {
+        margin-bottom: 15px;
+        border-left: 4px solid #6c757d;
+    }
+    
+    .permission-card.type-1 {
+        border-left-color: #007bff;
+    }
+    
+    .permission-card.type-2 {
+        border-left-color: #28a745;
+    }
+    
+    .permission-card.type-3 {
+        border-left-color: #fd7e14;
+    }
+    
+    .form-container {
+        max-width: 500px;
+        margin: 0 auto;
+    }
+    
+    /* 权限类型标签样式 */
+    .type-label-1 {
+        background-color: #007bff;
+        color: white;
+    }
+    
+    .type-label-2 {
+        background-color: #28a745;
+        color: white;
+    }
+    
+    .type-label-3 {
+        background-color: #fd7e14;
+        color: white;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <h2 class="mb-4">我的账户</h2>
+    
+    <div class="card">
+        <div class="card-header card-header-tab">
+            <ul class="nav nav-tabs card-header-tabs" id="myAccountTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="profile-tab" data-bs-toggle="tab" 
+                            data-bs-target="#profile" type="button" role="tab" 
+                            aria-controls="profile" aria-selected="true">账户信息</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="permissions-tab" data-bs-toggle="tab" 
+                            data-bs-target="#permissions" type="button" role="tab" 
+                            aria-controls="permissions" aria-selected="false">我的权限</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="update-tab" data-bs-toggle="tab" 
+                            data-bs-target="#update" type="button" role="tab" 
+                            aria-controls="update" aria-selected="false">修改信息</button>
+                </li>
+            </ul>
+        </div>
+        <div class="card-body card-body-tab">
+            <div class="tab-content" id="myAccountTabContent">
+                <!-- 账户信息 -->
+                <div class="tab-pane fade show active" id="profile" role="tabpanel" aria-labelledby="profile-tab">
+                    <div class="row mt-4">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header bg-primary text-white">
+                                    <h5 class="card-title mb-0">基本信息</h5>
+                                </div>
+                                <div class="card-body">
+                                    <table class="table table-striped">
+                                        <tr>
+                                            <th style="width: 30%">用户ID</th>
+                                            <td>{{ current_user.id }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>用户名</th>
+                                            <td>{{ current_user.username }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>电子邮箱</th>
+                                            <td>{{ current_user.email or '未设置' }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>账户角色</th>
+                                            <td>
+                                                <span class="badge {% if current_user.role == 'admin' %}bg-danger{% else %}bg-primary{% endif %}">
+                                                    {{ '管理员' if current_user.role == 'admin' else '普通用户' }}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <th>账户状态</th>
+                                            <td>
+                                                <span class="badge {% if current_user.is_active %}bg-success{% else %}bg-secondary{% endif %}">
+                                                    {{ '启用' if current_user.is_active else '禁用' }}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header bg-info text-white">
+                                    <h5 class="card-title mb-0">权限摘要</h5>
+                                </div>
+                                <div class="card-body">
+                                    {% if current_user.role == 'admin' %}
+                                    <!-- 管理员显示特殊信息 -->
+                                    <div class="alert alert-primary">
+                                        <i class="bi bi-shield-check me-2"></i>
+                                        <strong>管理员权限:</strong> 您作为管理员拥有系统内所有区域的全部操作权限。
+                                    </div>
+                                    <div class="d-flex flex-wrap mt-3">
+                                        <span class="badge bg-info m-1">可查看所有区域</span>
+                                        <span class="badge bg-success m-1">可新增所有区域</span>
+                                        <span class="badge bg-warning m-1">可编辑所有区域</span>
+                                        <span class="badge bg-danger m-1">可删除所有区域</span>
+                                    </div>
+                                    {% elif permissions %}
+                                    <!-- 普通用户显示原有权限摘要 -->
+                                    <table class="table table-striped">
+                                        <tr>
+                                            <th>权限类型</th>
+                                            <th>区域数量</th>
+                                            <th>操作权限</th>
+                                        </tr>
+                                        {% set ns = namespace(type_counts={'微型消防站': 0, '灭火器和呼吸器': 0, '应急灯具': 0}, ops={}) %}
+                                        
+                                        {% for perm in permissions %}
+                                            {% set _ = ns.type_counts.update({perm.operation_type: ns.type_counts[perm.operation_type] + 1}) %}
+                                            {% if perm.operation_type not in ns.ops %}
+                                                {% set _ = ns.ops.update({perm.operation_type: {'view': 0, 'add': 0, 'edit': 0, 'delete': 0}}) %}
+                                            {% endif %}
+                                            {% if perm.can_view %}{% set _ = ns.ops[perm.operation_type].update({'view': ns.ops[perm.operation_type]['view'] + 1}) %}{% endif %}
+                                            {% if perm.can_add %}{% set _ = ns.ops[perm.operation_type].update({'add': ns.ops[perm.operation_type]['add'] + 1}) %}{% endif %}
+                                            {% if perm.can_edit %}{% set _ = ns.ops[perm.operation_type].update({'edit': ns.ops[perm.operation_type]['edit'] + 1}) %}{% endif %}
+                                            {% if perm.can_delete %}{% set _ = ns.ops[perm.operation_type].update({'delete': ns.ops[perm.operation_type]['delete'] + 1}) %}{% endif %}
+                                        {% endfor %}
+                                        
+                                        {% for type, count in ns.type_counts.items() %}
+                                        {% if count > 0 %}
+                                        <tr>
+                                            <td>{{ type }}</td>
+                                            <td>{{ count }}</td>
+                                            <td>
+                                                {% if ns.ops[type]['view'] > 0 %}<span class="badge bg-info">可查看 {{ ns.ops[type]['view'] }}</span>{% endif %}
+                                                {% if ns.ops[type]['add'] > 0 %}<span class="badge bg-success">可新增 {{ ns.ops[type]['add'] }}</span>{% endif %}
+                                                {% if ns.ops[type]['edit'] > 0 %}<span class="badge bg-warning">可编辑 {{ ns.ops[type]['edit'] }}</span>{% endif %}
+                                                {% if ns.ops[type]['delete'] > 0 %}<span class="badge bg-danger">可删除 {{ ns.ops[type]['delete'] }}</span>{% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endif %}
+                                        {% endfor %}
+                                    </table>
+                                    {% else %}
+                                    <div class="alert alert-info">
+                                        您当前没有任何操作权限，请联系管理员分配权限。
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 我的权限 -->
+                <div class="tab-pane fade" id="permissions" role="tabpanel" aria-labelledby="permissions-tab">
+                    <div class="mt-4">
+                        {% if current_user.role == 'admin' %}
+                        <!-- 管理员显示特殊权限信息 -->
+                        <div class="card">
+                            <div class="card-header bg-primary text-white">
+                                <h5 class="card-title mb-0">
+                                    <i class="bi bi-shield-fill-check me-2"></i>
+                                    管理员全局权限
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <p>作为系统管理员，您拥有对所有功能模块和所有区域的完全操作权限，包括：</p>
+                                
+                                <div class="row mt-4">
+                                    <div class="col-md-4 mb-3">
+                                        <div class="card permission-card type-1">
+                                            <div class="card-body">
+                                                <h5 class="card-title">
+                                                    <span class="badge type-label-1">1</span>
+                                                    微型消防站管理
+                                                </h5>
+                                                <div class="mt-2">
+                                                    <span class="badge bg-info permission-badge">可查看</span>
+                                                    <span class="badge bg-success permission-badge">可新增</span>
+                                                    <span class="badge bg-warning permission-badge">可编辑</span>
+                                                    <span class="badge bg-danger permission-badge">可删除</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-md-4 mb-3">
+                                        <div class="card permission-card type-2">
+                                            <div class="card-body">
+                                                <h5 class="card-title">
+                                                    <span class="badge type-label-2">2</span>
+                                                    灭火器和呼吸器管理
+                                                </h5>
+                                                <div class="mt-2">
+                                                    <span class="badge bg-info permission-badge">可查看</span>
+                                                    <span class="badge bg-success permission-badge">可新增</span>
+                                                    <span class="badge bg-warning permission-badge">可编辑</span>
+                                                    <span class="badge bg-danger permission-badge">可删除</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-md-4 mb-3">
+                                        <div class="card permission-card type-3">
+                                            <div class="card-body">
+                                                <h5 class="card-title">
+                                                    <span class="badge type-label-3">3</span>
+                                                    应急灯具管理
+                                                </h5>
+                                                <div class="mt-2">
+                                                    <span class="badge bg-info permission-badge">可查看</span>
+                                                    <span class="badge bg-success permission-badge">可新增</span>
+                                                    <span class="badge bg-warning permission-badge">可编辑</span>
+                                                    <span class="badge bg-danger permission-badge">可删除</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="alert alert-info mt-3">
+                                    <i class="bi bi-info-circle-fill me-2"></i>
+                                    您还可以管理系统用户、有效期规则和负责人信息等系统核心功能。
+                                </div>
+                            </div>
+                        </div>
+                        {% elif permissions %}
+                            {% for perm in permissions %}
+                            <!-- 普通用户显示原有权限内容 -->
+                            <div class="card permission-card 
+                                {{ 'type-1' if perm.operation_type == '微型消防站' else 
+                                   'type-2' if perm.operation_type == '灭火器和呼吸器' else 
+                                   'type-3' if perm.operation_type == '应急灯具' else '' }}">
+                                <div class="card-body">
+                                    <h5 class="card-title">
+                                        <span class="badge 
+                                            {{ 'type-label-1' if perm.operation_type == '微型消防站' else 
+                                               'type-label-2' if perm.operation_type == '灭火器和呼吸器' else 
+                                               'type-label-3' if perm.operation_type == '应急灯具' else '' }}">
+                                            {% if perm.operation_type == '微型消防站' %}1
+                                            {% elif perm.operation_type == '灭火器和呼吸器' %}2
+                                            {% elif perm.operation_type == '应急灯具' %}3
+                                            {% endif %}
+                                        </span>
+                                        {{ perm.operation_type }} - {{ perm.area_name }}
+                                    </h5>
+                                    <div class="mt-2">
+                                        {% if perm.can_view %}<span class="badge bg-info permission-badge">可查看</span>{% endif %}
+                                        {% if perm.can_add %}<span class="badge bg-success permission-badge">可新增</span>{% endif %}
+                                        {% if perm.can_edit %}<span class="badge bg-warning permission-badge">可编辑</span>{% endif %}
+                                        {% if perm.can_delete %}<span class="badge bg-danger permission-badge">可删除</span>{% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="alert alert-info">
+                                您当前没有任何操作权限，请联系管理员分配权限。
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- 修改信息 -->
+                <div class="tab-pane fade" id="update" role="tabpanel" aria-labelledby="update-tab">
+                    <div class="row mt-4">
+                        <div class="col-md-6 mb-4">
+                            <div class="card">
+                                <div class="card-header bg-primary text-white">
+                                    <h5 class="card-title mb-0">修改电子邮箱</h5>
+                                </div>
+                                <div class="card-body">
+                                    <form method="POST" action="{{ url_for('auth.update_email') }}" class="form-container">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <div class="mb-3">
+                                            <label for="email" class="form-label">新邮箱地址</label>
+                                            <input type="email" class="form-control" id="email" name="email" 
+                                                   value="{{ current_user.email or '' }}" required>
+                                        </div>
+                                        <div class="d-grid">
+                                            <button type="submit" class="btn btn-primary">
+                                                <i class="bi bi-envelope"></i> 更新邮箱
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header bg-warning text-white">
+                                    <h5 class="card-title mb-0">修改密码</h5>
+                                </div>
+                                <div class="card-body">
+                                    <form method="POST" action="{{ url_for('auth.update_password') }}" class="form-container" id="passwordForm">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <div class="mb-3">
+                                            <label for="current_password" class="form-label">当前密码</label>
+                                            <input type="password" class="form-control" id="current_password" 
+                                                   name="current_password" required>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="new_password" class="form-label">新密码</label>
+                                            <input type="password" class="form-control" id="new_password" 
+                                                   name="new_password" required>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="confirm_password" class="form-label">确认新密码</label>
+                                            <input type="password" class="form-control" id="confirm_password" 
+                                                   name="confirm_password" required>
+                                        </div>
+                                        <div class="d-grid">
+                                            <button type="submit" class="btn btn-warning">
+                                                <i class="bi bi-key"></i> 更新密码
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 密码表单验证
+    const passwordForm = document.getElementById('passwordForm');
+    if (passwordForm) {
+        passwordForm.addEventListener('submit', function(e) {
+            const newPassword = document.getElementById('new_password').value;
+            const confirmPassword = document.getElementById('confirm_password').value;
+            
+            if (newPassword !== confirmPassword) {
+                e.preventDefault();
+                alert('两次输入的密码不一致');
+            }
+        });
+    }
+    
+    // 获取URL参数
+    const urlParams = new URLSearchParams(window.location.search);
+    const activeTab = urlParams.get('tab');
+    
+    // 如果存在tab参数，激活对应的选项卡
+    if (activeTab) {
+        const tab = document.getElementById(`${activeTab}-tab`);
+        if (tab) {
+            const bsTab = new bootstrap.Tab(tab);
+            bsTab.show();
+        }
+    }
+});
+</script>
+{% endblock %}

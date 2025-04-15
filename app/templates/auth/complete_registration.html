@@ -1,0 +1,115 @@
+{% extends 'base.html' %}
+
+{% block title %}完成注册 - 消防安全管理系统{% endblock %}
+
+{% block styles %}
+<style>
+    .complete-container {
+        max-width: 500px;
+        margin: 50px auto;
+    }
+    
+    .complete-card {
+        border-radius: 10px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    }
+    
+    .complete-header {
+        background-color: #f8f9fa;
+        padding: 20px;
+        border-top-left-radius: 10px;
+        border-top-right-radius: 10px;
+        text-align: center;
+    }
+    
+    .complete-body {
+        padding: 30px;
+    }
+    
+    .complete-footer {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-bottom-left-radius: 10px;
+        border-bottom-right-radius: 10px;
+        text-align: center;
+    }
+    
+    .password-requirements {
+        font-size: 14px;
+        margin-top: 10px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container complete-container">
+    <div class="card complete-card">
+        <div class="complete-header">
+            <h2>完成注册</h2>
+            <p class="text-muted">为您的账号 {{ email }} 设置用户名和密码</p>
+        </div>
+        
+        <div class="complete-body">
+            <!-- 添加CSRF令牌到表单中 -->
+            <form method="post" action="{{ url_for('auth.complete_registration', email=email) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                
+                <div class="mb-3">
+                    <label for="username" class="form-label">用户名</label>
+                    <input type="text" class="form-control" id="username" name="username" required autofocus>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="password" class="form-label">设置密码</label>
+                    <input type="password" class="form-control" id="password" name="password" required>
+                    <div class="password-requirements text-muted">
+                        <small>* 密码至少包含8个字符</small>
+                    </div>
+                </div>
+                
+                <div class="mb-4">
+                    <label for="confirm_password" class="form-label">确认密码</label>
+                    <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
+                </div>
+                
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-person-plus me-2"></i>完成注册
+                    </button>
+                </div>
+            </form>
+        </div>
+        
+        <div class="complete-footer">
+            <div class="text-center">
+                <p>返回 <a href="{{ url_for('auth.login') }}">登录页面</a></p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 添加客户端验证脚本 -->
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    const password = document.getElementById('password');
+    const confirmPassword = document.getElementById('confirm_password');
+    
+    form.addEventListener('submit', function(event) {
+        if (password.value !== confirmPassword.value) {
+            event.preventDefault();
+            alert('两次输入的密码不一致');
+            confirmPassword.focus();
+        }
+        
+        if (password.value.length < 8) {
+            event.preventDefault();
+            alert('密码长度必须至少8个字符');
+            password.focus();
+        }
+    });
+});
+</script>
+{% endblock %}
+{% endblock %}

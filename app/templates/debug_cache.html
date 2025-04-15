@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- 正确的缓存控制标签 -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>缓存测试</title>
+</head>
+<body>
+    <h1>缓存控制测试页面</h1>
+    <p>这个页面设置了正确的缓存控制标签</p>
+    <p>时间戳: {{ now }}</p>
+    
+    <a href="/debug_cache?t={{ now }}">刷新页面</a>
+</body>
+</html>

@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}消防安全管理系统{% endblock %}</title>
+    
+    <!-- 使用CDN引用Bootstrap和图标 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    
+    <style>
+        /* 基础布局样式 */
+        body {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .wrapper {
+            display: flex;
+            flex: 1;
+        }
+        
+        /* 侧边栏样式 */
+        .sidebar {
+            width: 240px;
+            min-height: 100vh;
+            background-color: #343a40;
+            color: #fff;
+            position: fixed;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            z-index: 1000;
+            padding-top: 0;
+            overflow-y: auto;
+            transition: all 0.3s;
+        }
+        
+        /* 侧边栏品牌/标题 */
+        .sidebar .sidebar-header {
+            padding: 1.25rem 1rem;
+            background-color: #212529;
+        }
+        
+        .sidebar .sidebar-header a {
+            color: #fff;
+            text-decoration: none;
+            font-size: 1.25rem;
+            font-weight: bold;
+        }
+        
+        .sidebar .sidebar-header .subtitle {
+            color: rgba(255,255,255,0.6);
+            font-size: 0.8rem;
+            margin-top: 5px;
+        }
+        
+        /* 侧边栏导航菜单 */
+        .sidebar .nav-link {
+            color: rgba(255, 255, 255, 0.85);
+            padding: 0.75rem 1rem;
+            font-size: 1rem;
+            border-radius: 0;
+            transition: all 0.2s;
+        }
+        
+        .sidebar .nav-link:hover {
+            color: #fff;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .sidebar .nav-link.active {
+            color: #fff;
+            background-color: #0d6efd;
+        }
+        
+        .sidebar .nav-link i {
+            margin-right: 8px;
+            width: 18px;
+            text-align: center;
+        }
+        
+        /* 下拉菜单 */
+        .sidebar .dropdown-menu {
+            position: static;
+            margin: 0;
+            padding: 0;
+            border: none;
+            border-radius: 0;
+            background-color: rgba(0, 0, 0, 0.2);
+        }
+        
+        .sidebar .dropdown-item {
+            padding: 0.5rem 1rem 0.5rem 3rem;
+            color: rgba(255, 255, 255, 0.75);
+        }
+        
+        .sidebar .dropdown-item:hover,
+        .sidebar .dropdown-item.active {
+            color: #fff;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        /* 导航分组标题 */
+        .nav-header {
+            padding: 0.75rem 1rem 0.25rem;
+            color: rgba(255,255,255,0.5);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05rem;
+        }
+        
+        /* 主内容区 */
+        main.content {
+            margin-left: 240px;
+            flex: 1;
+            padding: 1.5rem;
+            transition: all 0.3s;
+        }
+        
+        /* 用户信息区域 */
+        .user-info {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            margin-top: auto;
+        }
+        
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background-color: #5c6bc0;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        
+        .user-details {
+            flex-grow: 1;
+        }
+        
+        .user-name {
+            font-weight: 500;
+            color: #fff;
+            margin-bottom: 0;
+            font-size: 0.9rem;
+        }
+        
+        .user-role {
+            font-size: 0.75rem;
+            color: rgba(255,255,255,0.65);
+        }
+        
+        .logout-btn {
+            width: 32px;
+            height: 32px;
+            background: none;
+            border: none;
+            color: rgba(255,255,255,0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            padding: 0;
+        }
+        
+        .logout-btn:hover {
+            background-color: rgba(255,255,255,0.1);
+            color: #fff;
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .sidebar {
+                margin-left: -240px;
+            }
+            
+            .sidebar.active {
+                margin-left: 0;
+            }
+            
+            main.content {
+                margin-left: 0;
+            }
+            
+            main.content.sidebar-active {
+                margin-left: 240px;
+            }
+            
+            .sidebar-toggle-btn {
+                display: block !important;
+            }
+        }
+        
+        /* 切换按钮在移动端显示 */
+        .sidebar-toggle-btn {
+            display: none;
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            z-index: 1100;
+            padding: 0.5rem;
+            border-radius: 50%;
+            background-color: #343a40;
+            color: #fff;
+            border: none;
+        }
+        
+        /* 添加无权限菜单样式 */
+        .sidebar .nav-link.no-permission {
+            color: rgba(255, 255, 255, 0.4) !important; /* 确保文字为灰白色 */
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+        
+        .sidebar .nav-link.no-permission:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+        
+        .sidebar .nav-link.no-permission i.bi-lock-fill {
+            font-size: 0.7rem;
+            vertical-align: middle;
+        }
+    </style>
+    
+    <!-- 自定义样式 -->
+    {% block styles %}{% endblock %}
+</head>
+<body>
+    <!-- 移动设备侧边栏切换按钮 -->
+    <button class="sidebar-toggle-btn" id="sidebarToggle">
+        <i class="bi bi-list"></i>
+    </button>
+    
+    <div class="wrapper">
+        <!-- 侧边栏 -->
+        <nav class="sidebar" id="sidebar">
+            <!-- 系统标题 -->
+            <div class="sidebar-header">
+                <a href="{{ url_for('index') }}">
+                    <i class="bi bi-shield-fill-check"></i> 消防安全管理系统
+                </a>
+                <div class="subtitle">微型消防站物资管理平台</div>
+            </div>
+            
+            <!-- 导航菜单 -->
+            <div class="sidebar-nav">
+                <nav class="navbar navbar-dark bg-dark">
+                    <div class="container-fluid">
+                        <!-- 导航菜单 -->
+                        <ul class="navbar-nav">
+                            <!-- 物资管理 - 始终显示，根据权限调整样式和行为 -->
+                            <li class="nav-item">
+                                <a class="nav-link {% if request.path.startswith('/station') %}active{% endif %} 
+                                          {% if not user_permissions_by_type.micro_station and current_user.role != 'admin' %}no-permission{% endif %}"
+                                   href="{{ url_for('station.index') }}"
+                                   {% if not user_permissions_by_type.micro_station and current_user.role != 'admin' %}
+                                   onclick="showNoPermissionAlert(event, '微型站物资管理')"
+                                   {% endif %}>
+                                    <i class="bi bi-box"></i> 物资管理
+                                    {% if not user_permissions_by_type.micro_station and current_user.role != 'admin' %}
+                                    <i class="bi bi-lock-fill ms-1 text-danger small"></i>
+                                    {% endif %}
+                                </a>
+                            </li>
+                            
+                            <!-- 消防器材 - 始终显示，根据权限调整样式和行为 -->
+                            <li class="nav-item">
+                                <a class="nav-link {% if request.path.startswith('/equipment') %}active{% endif %}
+                                          {% if not user_permissions_by_type.fire_equipment and current_user.role != 'admin' %}no-permission{% endif %}"
+                                   href="{{ url_for('equipment.index') }}"
+                                   {% if not user_permissions_by_type.fire_equipment and current_user.role != 'admin' %}
+                                   onclick="showNoPermissionAlert(event, '消防器材管理')"
+                                   {% endif %}>
+                                    <i class="bi bi-fire"></i> 消防器材
+                                    {% if not user_permissions_by_type.fire_equipment and current_user.role != 'admin' %}
+                                    <i class="bi bi-lock-fill ms-1 text-danger small"></i>
+                                    {% endif %}
+                                </a>
+                            </li>
+                            
+                            <!-- 有效期预警 - 始终显示，根据权限调整样式和行为 -->
+                            <li class="nav-item">
+                                <a class="nav-link {% if request.path == '/admin/expiry_alert' %}active{% endif %}
+                                          {% if not can_view_expiry_alert %}no-permission{% endif %}"
+                                   href="{{ url_for('admin.expiry_alert') }}"
+                                   {% if not can_view_expiry_alert %}
+                                   onclick="showNoPermissionAlert(event, '有效期预警')"
+                                   {% endif %}>
+                                    <i class="bi bi-clock-history"></i> 有效期预警
+                                    {% if not can_view_expiry_alert %}
+                                    <i class="bi bi-lock-fill ms-1 text-danger small"></i>
+                                    {% endif %}
+                                </a>
+                            </li>
+                            
+                            <!-- 仅管理员可见的菜单项 -->
+                            {% if current_user.role == 'admin' %}
+                            <!-- 有效期管理 -->
+                            <li class="nav-item">
+                                <a class="nav-link {% if request.path == '/admin/expiry' %}active{% endif %}" href="{{ url_for('admin.expiry') }}">
+                                    <i class="bi bi-calendar-check"></i> 有效期管理
+                                </a>
+                            </li>
+                            
+                            <!-- 负责人管理 -->
+                            <li class="nav-item">
+                                <a class="nav-link {% if request.path == '/admin/responsible' %}active{% endif %}" href="{{ url_for('admin.responsible') }}">
+                                    <i class="bi bi-person-badge"></i> 负责人管理
+                                </a>
+                            </li>
+                            
+                            <!-- 用户管理 -->
+                            <li class="nav-item">
+                                <a class="nav-link {% if request.path == '/admin/users' %}active{% endif %}" href="{{ url_for('admin.users') }}">
+                                    <i class="bi bi-people"></i> 用户管理
+                                </a>
+                            </li>
+
+                            <!-- 邮件日志 -->
+                            <li class="nav-item">
+                                <a class="nav-link {% if request.path == '/admin/mail_logs' %}active{% endif %}" href="{{ url_for('admin.mail_logs') }}">
+                                    <i class="bi bi-envelope-check"></i> 邮件日志
+                                </a>
+                            </li>
+
+                            <!-- 物品分析菜单 - 仅管理员可见 -->
+                            {% if current_user.is_authenticated and current_user.role == 'admin' %}
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle" href="#" id="analysisDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="bi bi-bar-chart-line me-1"></i> 物品分析
+                                </a>
+                                <ul class="dropdown-menu" aria-labelledby="analysisDropdown">
+                                    <li><a class="dropdown-item" href="{{ url_for('analytics.index') }}">分析概览</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('analytics.expiry_analysis') }}">到期时间分析</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('analytics.responsible_analysis') }}">负责人分析</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('analytics.area_analysis') }}">区域分析</a></li>
+                                </ul>
+                            </li>
+                            {% endif %}
+                            
+                            {% endif %}
+                            
+                            <!-- 个人账户菜单项 - 所有用户可见 -->
+                            <li class="nav-item mt-3">
+                                <a class="nav-link {% if request.path == '/auth/my_account' %}active{% endif %}" href="{{ url_for('auth.my_account') }}">
+                                    <i class="bi bi-person-circle"></i> 个人信息
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </nav>
+            </div>
+            
+            <!-- 用户信息区域 -->
+            {% if current_user.is_authenticated %}
+            <div class="user-info mt-auto">
+                <div class="user-avatar">
+                    {{ current_user.username[0].upper() }}
+                </div>
+                <div class="user-details">
+                    <p class="user-name">{{ current_user.username }}</p>
+                    <span class="user-role">
+                        {% if current_user.role == 'admin' %}管理员{% else %}普通用户{% endif %}
+                    </span>
+                </div>
+                <a href="{{ url_for('auth.logout') }}" class="logout-btn" title="退出登录">
+                    <i class="bi bi-box-arrow-right"></i>
+                </a>
+            </div>
+            {% else %}
+            <div class="mt-auto p-3">
+                <a href="{{ url_for('auth.login') }}" class="btn btn-outline-light btn-sm w-100">
+                    <i class="bi bi-box-arrow-in-right me-1"></i> 登录
+                </a>
+            </div>
+            {% endif %}
+        </nav>
+        
+        <!-- 主内容区 -->
+        <main class="content">
+            <!-- 闪现消息显示区域 -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category if category else 'info' }} alert-dismissible fade show">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            
+            <!-- 内容区 -->
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+    
+    <!-- 脚本 -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 侧边栏切换功能
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            const sidebar = document.getElementById('sidebar');
+            const content = document.querySelector('.content');
+            
+            if (sidebarToggle) {
+                sidebarToggle.addEventListener('click', function() {
+                    sidebar.classList.toggle('active');
+                    content.classList.toggle('sidebar-active');
+                });
+            }
+            
+            // 处理折叠菜单
+            const dropdownItems = document.querySelectorAll('.sidebar .nav-link[data-bs-toggle="collapse"]');
+            dropdownItems.forEach(item => {
+                item.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const submenu = document.querySelector(this.getAttribute('href'));
+                    if (submenu) {
+                        submenu.classList.toggle('show');
+                        
+                        // 切换箭头方向
+                        const arrow = this.querySelector('.bi-chevron-down');
+                        if (arrow) {
+                            if (submenu.classList.contains('show')) {
+                                arrow.classList.replace('bi-chevron-down', 'bi-chevron-up');
+                            } else {
+                                arrow.classList.replace('bi-chevron-up', 'bi-chevron-down');
+                            }
+                        }
+                    }
+                });
+            });
+            
+            // 检查CSRF令牌
+            const forms = document.querySelectorAll('form[method="POST"]');
+            forms.forEach(form => {
+                if (!form.querySelector('input[name="csrf_token"]')) {
+                    console.warn('表单缺少CSRF令牌:', form);
+                    
+                    // 尝试添加CSRF令牌
+                    if (typeof csrf_token === 'function') {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = 'csrf_token';
+                        input.value = csrf_token();
+                        form.appendChild(input);
+                    }
+                }
+            });
+        });
+        
+        function showNoPermissionAlert(event, moduleName) {
+            event.preventDefault();
+            // 重定向到无权限页面，而不是显示警示框
+            window.location.href = "{{ url_for('common.no_permission', module='') }}" + encodeURIComponent(moduleName);
+        }
+    </script>
+    
+    <!-- 页面特定脚本 -->
+    {% block scripts %}
+    <script src="{{ url_for('static', filename='js/common_filters.js') }}?v={{ cache_buster }}"></script>
+    <script src="{{ url_for('static', filename='js/modal_init.js') }}?v={{ cache_buster }}"></script>
+    {% endblock %}
+</body>
+</html>

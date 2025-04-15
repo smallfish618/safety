@@ -1,0 +1,468 @@
+{% extends 'base.html' %}
+
+{% block title %}消防器材管理 - 消防安全管理系统{% endblock %}
+
+{% block styles %}
+<style>
+    /* 表格样式 */
+    .equipment-table th {
+        white-space: nowrap;
+    }
+    
+    /* 表格行悬停效果 */
+    .table-hover tbody tr:hover {
+        background-color: rgba(0, 123, 255, 0.1);
+    }
+    
+    /* 紧凑型表格 */
+    .table-sm td, .table-sm th {
+        padding: 0.3rem;
+    }
+    
+    /* 过期提醒样式 */
+    .expiry-warning {
+        color: #dc3545;
+        font-weight: bold;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2 class="mb-4">消防器材管理</h2>
+    
+    <!-- 搜索和筛选区域 -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="card-title">搜索筛选</h5>
+        </div>
+        <div class="card-body">
+            <form method="get" action="{{ url_for('equipment.index') }}" class="row g-3">
+                <!-- 搜索框和按钮 -->
+                <div class="col-md-12">
+                    <div class="input-group">
+                        <input type="text" class="form-control" placeholder="搜索器材名称、型号、位置等..." name="search" value="{{ search or '' }}">
+                        <button class="btn btn-primary" type="submit">
+                            搜索
+                        </button>
+                        
+                        <!-- 高级筛选按钮 -->
+                        <button type="button" class="btn btn-outline-secondary" data-bs-toggle="collapse" 
+                                data-bs-target="#advancedFilters" 
+                                aria-expanded="{{ 'true' if has_advanced_filters else 'false' }}">
+                            高级筛选
+                            {% if has_advanced_filters %}
+                            <span class="badge bg-primary">已筛选</span>
+                            {% endif %}
+                        </button>
+                        
+                        <!-- 清除筛选按钮 -->
+                        {% if search or has_advanced_filters %}
+                        <a href="{{ url_for('equipment.index') }}" class="btn btn-secondary">
+                            清除筛选
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- 高级筛选区域 -->
+                <div class="col-12">
+                    <div class="collapse {{ 'show' if has_advanced_filters else '' }}" id="advancedFilters">
+                        <div class="card card-body mt-3">
+                            <div class="row g-3">
+                                <!-- 器材类型筛选 -->
+                                <div class="col-md-4">
+                                    <label for="filter_type" class="form-label">器材类型</label>
+                                    <select class="form-select" id="filter_type" name="filter_type">
+                                        <option value="">-- 全部 --</option>
+                                        {% for type in equipment_types %}
+                                        <option value="{{ type }}" {% if filter_type == type %}selected{% endif %}>{{ type }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                
+                                <!-- 区域筛选 -->
+                                <div class="col-md-4">
+                                    <label for="filter_area" class="form-label">区域</label>
+                                    <select class="form-select" id="filter_area" name="filter_area">
+                                        <option value="">-- 全部 --</option>
+                                        {% for area in areas %}
+                                        <option value="{{ area }}" {% if filter_area == area %}selected{% endif %}>{{ area }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                
+                                <!-- 生产日期范围筛选 -->
+                                <div class="col-md-4">
+                                    <label class="form-label">生产日期范围</label>
+                                    <div class="input-group">
+                                        <input type="date" class="form-control" name="date_from" id="date_from" value="{{ date_from }}" placeholder="开始日期">
+                                        <span class="input-group-text">至</span>
+                                        <input type="date" class="form-control" name="date_to" id="date_to" value="{{ date_to }}" placeholder="结束日期">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-3 d-flex justify-content-between">
+                                <button type="submit" class="btn btn-primary">
+                                    应用筛选
+                                </button>
+                                
+                                {% if has_advanced_filters %}
+                                <a href="{{ url_for('equipment.index', search=search) }}" class="btn btn-outline-secondary">
+                                    仅清除高级筛选
+                                </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    <!-- 器材列表卡片 -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span>消防器材列表 <span class="badge bg-info">{{ total_count }}条记录</span></span>
+            <a href="{{ url_for('equipment.add') }}" 
+               class="btn btn-primary {% if not user_can_add %}disabled opacity-50{% endif %}"
+               {% if not user_can_add %}
+               onclick="event.preventDefault(); showPermissionAlert('新增')"
+               {% endif %}>
+                添加消防器材
+            </a>
+        </div>
+        <div class="card-body">
+            {% if equipments %}
+            <div class="table-responsive">
+                <table class="table table-striped table-hover table-sm equipment-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>区域编码</th>
+                            <th>区域名称</th>
+                            <th>楼层</th>
+                            <th>安装位置</th>
+                            <th>器材名称</th>
+                            <th>器材类型</th>
+                            <th>品牌型号</th>
+                            <th>重量</th>
+                            <th>数量</th>
+                            <th>生产日期</th>
+                            <th>使用年限</th>
+                            <th>到期日期</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for equipment in equipments %}
+                        <tr>
+                            <td>{{ equipment.id }}</td>
+                            <td>{{ equipment.area_code }}</td>
+                            <td>{{ equipment.area_name }}</td>
+                            <td>{{ equipment.installation_floor }}</td>
+                            <td>{{ equipment.installation_location }}</td>
+                            <td>{{ equipment.equipment_name }}</td>
+                            <td>{{ equipment.equipment_type }}</td>
+                            <td>{{ equipment.model }}</td>
+                            <td>{{ equipment.weight }}</td>
+                            <td>{{ equipment.quantity }}</td>
+                            <td>{{ equipment.production_date }}</td>
+                            <td>{{ equipment.service_life }}</td>
+                            <td>{{ equipment.expiration_date }}</td>
+                            <td>
+                                <div class="btn-group">
+                                    <!-- 查看按钮 - 需要查看权限 -->
+                                    <a href="{{ url_for('equipment.detail', equipment_id=equipment.id) }}" 
+                                       class="btn btn-sm btn-info {% if current_user.role != 'admin' and not (equipment.area_code|string in user_permissions and user_permissions[equipment.area_code|string]['can_view']) %}disabled opacity-50{% endif %}"
+                                       {% if current_user.role != 'admin' and not (equipment.area_code|string in user_permissions and user_permissions[equipment.area_code|string]['can_view']) %}
+                                       onclick="event.preventDefault(); showPermissionAlert('查看')"
+                                       {% endif %}
+                                       title="查看详情">
+                                        详情
+                                    </a>
+                                    
+                                    <!-- 编辑按钮 - 需要编辑权限 -->
+                                    <a href="{{ url_for('equipment.edit', equipment_id=equipment.id) }}" 
+                                       class="btn btn-sm btn-warning {% if current_user.role != 'admin' and not (equipment.area_code|string in user_permissions and user_permissions[equipment.area_code|string]['can_edit']) %}disabled opacity-50{% endif %}"
+                                       {% if current_user.role != 'admin' and not (equipment.area_code|string in user_permissions and user_permissions[equipment.area_code|string]['can_edit']) %}
+                                       onclick="event.preventDefault(); showPermissionAlert('编辑')"
+                                       {% endif %}
+                                       title="编辑信息">
+                                        编辑
+                                    </a>
+                                    
+                                    <!-- 删除按钮 - 需要删除权限 -->
+                                    <button type="button" 
+                                            class="btn btn-sm btn-danger {% if current_user.role != 'admin' and not (equipment.area_code|string in user_permissions and user_permissions[equipment.area_code|string]['can_delete']) %}disabled opacity-50{% endif %}"
+                                            {% if current_user.role == 'admin' or (equipment.area_code|string in user_permissions and user_permissions[equipment.area_code|string]['can_delete']) %}
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#deleteModal{{ equipment.id }}"
+                                            {% else %}
+                                            onclick="showPermissionAlert('删除')"
+                                            {% endif %}
+                                            title="删除信息">
+                                        删除
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <!-- 分页控件 -->
+                {% if pagination and pagination.pages > 1 %}
+                <nav aria-label="数据分页">
+                    <ul class="pagination justify-content-center">
+                        <!-- 第一页按钮 -->
+                        <li class="page-item {% if pagination.page == 1 %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('equipment.index', page=1, search=search, filter_type=filter_type, filter_floor=filter_floor, filter_location=filter_location) if pagination.page != 1 else '#' }}" aria-label="第一页">
+                                <span aria-hidden="true">&laquo;&laquo;</span>
+                            </a>
+                        </li>
+                        
+                        <!-- 上一页按钮 -->
+                        <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('equipment.index', page=pagination.prev_num, search=search, filter_type=filter_type, filter_floor=filter_floor, filter_location=filter_location) if pagination.has_prev else '#' }}" aria-label="上一页">
+                                <span aria-hidden="true">&laquo;</span>
+                            </a>
+                        </li>
+                        
+                        <!-- 页码 -->
+                        {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                            {% if p %}
+                                {% if p == pagination.page %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ p }}</span>
+                                </li>
+                                {% else %}
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('equipment.index', page=p, search=search, filter_type=filter_type, filter_floor=filter_floor, filter_location=filter_location) }}">{{ p }}</a>
+                                </li>
+                                {% endif %}
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        <!-- 下一页按钮 -->
+                        <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('equipment.index', page=pagination.next_num, search=search, filter_type=filter_type, filter_floor=filter_floor, filter_location=filter_location) if pagination.has_next else '#' }}" aria-label="下一页">
+                                <span aria-hidden="true">&raquo;</span>
+                            </a>
+                        </li>
+                        
+                        <!-- 最后一页按钮 -->
+                        <li class="page-item {% if pagination.page == pagination.pages %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('equipment.index', page=pagination.pages, search=search, filter_type=filter_type, filter_floor=filter_floor, filter_location=filter_location) if pagination.page != pagination.pages else '#' }}" aria-label="最后一页">
+                                <span aria-hidden="true">&raquo;&raquo;</span>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+                {% endif %}
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                暂无消防器材数据。
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div> <!-- 这是结束container-fluid的div标签 -->
+
+<!-- 修改删除确认模态框部分，显示更多字段 -->
+{% for equipment in equipments %}
+{% if current_user.role == 'admin' or (user_permissions.get(equipment.area_code|string, {}).get('can_delete', False)) %}
+<div class="modal fade" id="deleteModal{{ equipment.id }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title">确认删除</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-warning">
+          <i class="bi bi-exclamation-triangle-fill me-2"></i>
+          <strong>警告：此操作不可恢复！</strong> 请仔细确认以下信息是否为您要删除的记录。
+        </div>
+        
+        <h6 class="text-danger mb-3">您确定要删除以下消防器材吗？</h6>
+        
+        <div class="table-responsive">
+          <table class="table table-bordered table-sm">
+            <tr>
+              <th style="width: 25%">ID</th>
+              <td>{{ equipment.id }}</td>
+            </tr>
+            <tr>
+              <th>区域编码</th>
+              <td>{{ equipment.area_code }}</td>
+            </tr>
+            <tr>
+              <th>区域名称</th>
+              <td>{{ equipment.area_name }}</td>
+            </tr>
+            <tr>
+              <th>楼层</th>
+              <td>{{ equipment.installation_floor }}</td>
+            </tr>
+            <tr>
+              <th>安装位置</th>
+              <td>{{ equipment.installation_location }}</td>
+            </tr>
+            <tr>
+              <th>器材类型</th>
+              <td>{{ equipment.equipment_type }}</td>
+            </tr>
+            <tr class="table-danger">
+              <th>器材名称</th>
+              <td><strong>{{ equipment.equipment_name }}</strong></td>
+            </tr>
+            <tr>
+              <th>品牌型号</th>
+              <td>{{ equipment.model }}</td>
+            </tr>
+            <tr>
+              <th>重量</th>
+              <td>{{ equipment.weight }}</td>
+            </tr>
+            <tr>
+              <th>数量</th>
+              <td>{{ equipment.quantity }}</td>
+            </tr>
+            <tr>
+              <th>生产日期</th>
+              <td>{{ equipment.production_date }}</td>
+            </tr>
+            <tr>
+              <th>使用年限</th>
+              <td>{{ equipment.service_life }}</td>
+            </tr>
+            <tr>
+              <th>到期日期</th>
+              <td>{{ equipment.expiration_date }}</td>
+            </tr>
+            {% if equipment.remark %}
+            <tr>
+              <th>备注</th>
+              <td>{{ equipment.remark }}</td>
+            </tr>
+            {% endif %}
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <form action="{{ url_for('equipment.delete', equipment_id=equipment.id) }}" method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-danger">确认删除</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endfor %}
+
+<!-- 修改Toast容器的位置样式，使其固定在真正的右上角 -->
+<div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 9999; margin-top: 5px; margin-right: 5px;">
+    <!-- Toast会被动态添加到这里 -->
+</div>
+
+{% endblock %} <!-- 这里正确关闭content块 -->
+
+{% block scripts %}
+<script>
+// 首先定义显示Toast的函数
+window.showPermissionAlert = function(actionType) {
+    console.log('权限提示被调用:', actionType);
+    
+    // 创建toast元素
+    const toastEl = document.createElement('div');
+    toastEl.className = 'toast align-items-center text-white bg-warning border-0';
+    toastEl.setAttribute('role', 'alert');
+    toastEl.setAttribute('aria-live', 'assertive');
+    toastEl.setAttribute('aria-atomic', 'true');
+    
+    // 设置内容
+    toastEl.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                您没有${actionType}此消防器材的权限
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="关闭"></button>
+        </div>
+    `;
+    
+    // 获取或创建Toast容器
+    let toastContainer = document.querySelector('.toast-container');
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+        toastContainer.style.zIndex = '9999';
+        toastContainer.style.marginTop = '5px'; 
+        toastContainer.style.marginRight = '5px';
+        document.body.appendChild(toastContainer);
+    }
+    
+    // 添加Toast到容器
+    toastContainer.appendChild(toastEl);
+    
+    // 显示Toast
+    try {
+        const toast = new bootstrap.Toast(toastEl, {delay: 3000});
+        toast.show();
+    } catch (e) {
+        console.error('显示Toast出错:', e);
+        alert(`您没有${actionType}此消防器材的权限`);
+    }
+};
+
+// 初始化时添加全局点击事件委托，处理所有无权限按钮
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM加载完成，初始化权限处理');
+    
+    // 添加全局点击事件，拦截所有点击
+    document.addEventListener('click', function(e) {
+        // 查找被点击元素或其最近的父元素是否含有onclick="showPermissionAlert"
+        const target = e.target.closest('[onclick*="showPermissionAlert"]');
+        
+        if (target) {
+            console.log('检测到无权限按钮点击:', target);
+            // 提取操作类型
+            const onclickAttr = target.getAttribute('onclick');
+            const match = onclickAttr.match(/showPermissionAlert\(['"]([^'"]+)['"]\)/);
+            const actionType = match ? match[1] : '未知操作';
+            
+            // 阻止默认行为和事件冒泡
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // 显示Toast提示
+            showPermissionAlert(actionType);
+            return false;
+        }
+    }, true); // 使用捕获阶段确保能拦截到事件
+    
+    // 检查Bootstrap是否已加载
+    if (!window.bootstrap) {
+        console.warn('Bootstrap未加载，尝试加载...');
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js';
+        document.head.appendChild(script);
+    }
+    
+    // 移除"disabled"类但保留"opacity-50"类，这样按钮看起来是禁用的，但实际上可以点击
+    document.querySelectorAll('.disabled.opacity-50').forEach(button => {
+        if (button.getAttribute('onclick') && button.getAttribute('onclick').includes('showPermissionAlert')) {
+            button.classList.remove('disabled');
+            console.log('已移除disabled类以允许点击:', button.outerHTML.substring(0, 100));
+        }
+    });
+});
+</script>
+{% endblock %} <!-- 这里正确关闭scripts块 -->

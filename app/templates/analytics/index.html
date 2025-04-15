@@ -1,0 +1,248 @@
+{% extends 'base.html' %}
+
+{% block title %}物资分析概览 - 消防安全管理系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2 class="mb-4">
+        <i class="bi bi-graph-up me-2"></i> 物资分析概览
+    </h2>
+    
+    {% if error %}
+    <div class="alert alert-danger">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i> 错误: {{ error }}
+    </div>
+    {% else %}
+    
+    <!-- 统计卡片 -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white mb-3">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title">微型站物资</h6>
+                            <h3 class="mb-0">{{ station_count }}</h3>
+                        </div>
+                        <i class="bi bi-box-seam fs-1 opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card bg-success text-white mb-3">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title">消防器材</h6>
+                            <h3 class="mb-0">{{ equipment_count }}</h3>
+                        </div>
+                        <i class="bi bi-fire fs-1 opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card bg-info text-white mb-3">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title">管理区域</h6>
+                            <h3 class="mb-0">{{ area_count }}</h3>
+                        </div>
+                        <i class="bi bi-geo-alt fs-1 opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card bg-warning text-dark mb-3">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title">物资负责人</h6>
+                            <h3 class="mb-0">{{ responsible_count }}</h3>
+                        </div>
+                        <i class="bi bi-person-badge fs-1 opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 到期统计卡片 -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-danger text-white mb-3">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title">已过期</h6>
+                            <h3 class="mb-0">{{ expiring_count.expired }}</h3>
+                        </div>
+                        <i class="bi bi-exclamation-triangle fs-1 opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card bg-warning text-dark mb-3">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title">30天内到期</h6>
+                            <h3 class="mb-0">{{ expiring_count.within_30 }}</h6>
+                        </div>
+                        <i class="bi bi-clock-history fs-1 opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card bg-info text-white mb-3">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title">90天内到期</h6>
+                            <h3 class="mb-0">{{ expiring_count.within_90 }}</h3>
+                        </div>
+                        <i class="bi bi-calendar-check fs-1 opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card bg-secondary text-white mb-3">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title">6个月内到期</h6>
+                            <h3 class="mb-0">{{ expiring_count.within_180 }}</h3>
+                        </div>
+                        <i class="bi bi-calendar-date fs-1 opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 图表区域 -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">物资最多的前5个区域</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="topAreasChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">物资最多的前5位负责人</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="topResponsiblesChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 分析链接 -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">详细分析</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <a href="{{ url_for('analytics.expiry_analysis') }}" class="btn btn-outline-primary w-100 py-3">
+                                <i class="bi bi-calendar-check me-2"></i> 到期时间分析
+                            </a>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <a href="{{ url_for('analytics.responsible_analysis') }}" class="btn btn-outline-primary w-100 py-3">
+                                <i class="bi bi-person-badge me-2"></i> 负责人分析
+                            </a>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <a href="{{ url_for('analytics.area_analysis') }}" class="btn btn-outline-primary w-100 py-3">
+                                <i class="bi bi-geo-alt me-2"></i> 区域分析
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 顶部区域图表
+    const topAreasCtx = document.getElementById('topAreasChart').getContext('2d');
+    new Chart(topAreasCtx, {
+        type: 'bar',
+        data: {
+            labels: {{ top_area_data.labels|tojson }},
+            datasets: [{
+                label: '物资数量',
+                data: {{ top_area_data.counts|tojson }},
+                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                borderColor: 'rgba(75, 192, 192, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+    
+    // 顶部负责人图表
+    const topResponsiblesCtx = document.getElementById('topResponsiblesChart').getContext('2d');
+    new Chart(topResponsiblesCtx, {
+        type: 'bar',
+        data: {
+            labels: {{ top_resp_data.labels|tojson }},
+            datasets: [{
+                label: '负责物资数量',
+                data: {{ top_resp_data.counts|tojson }},
+                backgroundColor: 'rgba(153, 102, 255, 0.2)',
+                borderColor: 'rgba(153, 102, 255, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

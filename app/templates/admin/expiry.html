@@ -1,0 +1,905 @@
+{% extends 'base.html' %}
+
+{% block title %}物资设备有效期信息 - 消防安全管理系统{% endblock %}
+
+{% block styles %}
+<style>
+    /* 多行文本截断 - 显示3行，超出显示省略号 */
+    .description-cell {
+        max-height: 4.5em; /* 大约3行文本的高度 */
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-line-clamp: 3; /* 显示3行 */
+        line-clamp: 3; /* 标准属性，显示3行 */
+        -webkit-box-orient: vertical;
+        line-height: 1.5em;
+        white-space: normal !important; /* 允许换行 */
+        text-overflow: ellipsis;
+        word-break: break-word;
+    }
+    
+    /* 表格样式优化 */
+    .table-responsive {
+        overflow-x: auto;
+    }
+    
+    /* 操作列按钮组样式 - 与物资信息表保持一致 */
+    .btn-group .btn {
+        padding: .25rem .5rem;
+        font-size: .75rem;
+    }
+    
+    .btn-group .btn i {
+        font-size: 0.875rem;
+        margin-right: 2px;
+        display: inline-flex;
+        align-items: center;
+    }
+    
+    /* 优化按钮间距 */
+    .btn-group .btn:not(:last-child) {
+        margin-right: 2px;
+    }
+    
+    @media (max-width: 992px) {
+        /* 在小屏幕上压缩按钮 */
+        .btn-group .btn {
+            padding: .2rem .4rem;
+            font-size: .7rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2 class="mb-4">物资设备有效期信息</h2>
+    
+    <!-- 修改搜索和筛选按钮布局，使其与物资管理页面一致 -->
+    <!-- 搜索筛选区域 -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="card-title">搜索筛选</h5>
+        </div>
+        <div class="card-body">
+            <!-- 搜索表单 -->
+            <form method="get" action="{{ url_for('admin.expiry') }}" class="row g-3">
+                <!-- 将搜索框和所有按钮放在同一行 -->
+                <div class="col-md-12">
+                    <div class="input-group">
+                        <!-- 搜索输入框 -->
+                        <input type="text" class="form-control" placeholder="搜索任意字段..." name="search" value="{{ search or '' }}">
+                        
+                        <!-- 搜索按钮 -->
+                        <button class="btn btn-primary" type="submit">
+                            <i class="bi bi-search"></i> 搜索
+                        </button>
+                        
+                        <!-- 高级筛选按钮 - 现在放在搜索按钮旁边 -->
+                        <button type="button" class="btn btn-outline-secondary" data-bs-toggle="collapse" 
+                                data-bs-target="#advancedFilters" 
+                                aria-expanded="{{ 'true' if filter_category or filter_item else 'false' }}">
+                            <i class="bi bi-funnel"></i> 高级筛选
+                            {% if filter_category or filter_item %}
+                            <span class="badge bg-primary">已筛选</span>
+                            {% endif %}
+                        </button>
+                        
+                        <!-- 清除筛选按钮 - 确保在有筛选条件时显示 -->
+                        {% if search or filter_category or filter_item %}
+                        <a href="{{ url_for('admin.expiry') }}" class="btn btn-secondary">
+                            <i class="bi bi-x-circle"></i> 清除筛选
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- 高级筛选区域 -->
+                <div class="col-12">
+                    <div class="collapse {{ 'show' if filter_category or filter_item else '' }}" id="advancedFilters">
+                        <div class="card card-body mt-3">
+                            <div class="row g-3">
+                                <!-- 物资类别筛选 - 确保选中状态和值正确保留 -->
+                                <div class="col-md-4">
+                                    <label for="filter_category" class="form-label">物资类别</label>
+                                    <select class="form-select" id="filter_category" name="filter_category">
+                                        <option value="">-- 全部 --</option>
+                                        {% for category in category_list %}
+                                        <option value="{{ category }}" {% if filter_category == category %}selected{% endif %}>{{ category }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                
+                                <!-- 物品名称筛选 - 确保选中状态和值正确保留 -->
+                                <div class="col-md-4">
+                                    <label for="filter_item" class="form-label">物品名称</label>
+                                    <select class="form-select" id="filter_item" name="filter_item">
+                                        <option value="">-- 全部 --</option>
+                                        {% for item in item_list %}
+                                        <option value="{{ item }}" {% if filter_item == item %}selected{% endif %}>{{ item }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-3 d-flex justify-content-between">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-filter"></i> 应用筛选
+                                </button>
+                                
+                                <!-- 确保在有高级筛选条件时显示清除高级筛选按钮 -->
+                                {% if filter_category or filter_item %}
+                                <a href="{{ url_for('admin.expiry', search=search) }}" class="btn btn-outline-secondary">
+                                    <i class="bi bi-eraser"></i> 仅清除高级筛选
+                                </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span>有效期信息列表 {% if total_count %}<span class="badge bg-info">{{ total_count }}条记录</span>{% endif %}</span>
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addExpiryRuleModal">添加有效期规则</button>
+        </div>
+        <div class="card-body">
+            {% if expiry_items %}
+            <div class="table-responsive">
+                <table class="table table-striped table-hover table-sm">
+                    <thead>
+                        <tr>
+                            <th style="width: 5%;">ID</th>
+                            <th style="width: 15%;">分类</th>
+                            <th style="width: 15%;">名称</th>
+                            <th style="width: 8%;">有效期</th>
+                            <th style="width: 8%;">报废期</th>
+                            <th style="width: 35%;">说明</th>
+                            <th style="width: 14%;">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in expiry_items %}
+                        <tr>
+                            <td>{{ item.id }}</td>
+                            <td>{{ item.item_category }}</td>
+                            <td>{{ item.item_name }}</td>
+                            <td class="text-center">{{ item.normal_expiry }}年</td>
+                            <td class="text-center">{{ item.mandatory_expiry }}年</td>
+                            <td>
+                                <div class="description-cell" title="{{ item.description }}">
+                                    {{ item.description }}
+                                </div>
+                            </td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <button class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#detailModal-{{ item.id }}" title="查看详情">
+                                        详情
+                                    </button>
+                                    <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editModal-{{ item.id }}" title="编辑信息">
+                                        编辑
+                                    </button>
+                                    <button class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal" 
+                                            data-rule-id="{{ item.id }}"
+                                            data-rule-name="{{ item.item_name }}"
+                                            data-rule-category="{{ item.item_category }}"
+                                            data-normal-expiry="{{ item.normal_expiry }}"
+                                            data-mandatory-expiry="{{ item.mandatory_expiry }}"
+                                            data-description="{{ item.description|default('', true) }}"
+                                            title="删除信息">
+                                        删除
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                
+                <!-- 修改分页控件，添加第一页和最后一页按钮 -->
+                {% if pagination and pagination.pages > 1 %}
+                <nav aria-label="数据分页">
+                    <ul class="pagination justify-content-center">
+                        <!-- 第一页按钮 -->
+                        <li class="page-item {% if pagination.page == 1 %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('admin.expiry', page=1, search=search, filter_category=filter_category, filter_item=filter_item) if pagination.page != 1 else '#' }}" aria-label="第一页">
+                                <span aria-hidden="true">&laquo;&laquo;</span>
+                            </a>
+                        </li>
+                        
+                        <!-- 上一页按钮 -->
+                        <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('admin.expiry', page=pagination.prev_num, search=search, filter_category=filter_category, filter_item=filter_item) if pagination.has_prev else '#' }}" aria-label="上一页">
+                                <span aria-hidden="true">&laquo;</span>
+                            </a>
+                        </li>
+                        
+                        <!-- 页码 -->
+                        {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                            {% if p %}
+                                {% if p == pagination.page %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ p }}</span>
+                                </li>
+                                {% else %}
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('admin.expiry', page=p, search=search, filter_category=filter_category, filter_item=filter_item) }}">{{ p }}</a>
+                                </li>
+                                {% endif %}
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        <!-- 下一页按钮 -->
+                        <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('admin.expiry', page=pagination.next_num, search=search, filter_category=filter_category, filter_item=filter_item) if pagination.has_next else '#' }}" aria-label="下一页">
+                                <span aria-hidden="true">&raquo;</span>
+                            </a>
+                        </li>
+                        
+                        <!-- 最后一页按钮 -->
+                        <li class="page-item {% if pagination.page == pagination.pages %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('admin.expiry', page=pagination.pages, search=search, filter_category=filter_category, filter_item=filter_item) if pagination.page != pagination.pages else '#' }}" aria-label="最后一页">
+                                <span aria-hidden="true">&raquo;&raquo;</span>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+                <div class="text-center text-muted mt-2">
+                    <small>显示 {{ pagination.total }} 条记录中的第 {{ pagination.page }} 页（共 {{ pagination.pages }} 页）</small>
+                </div>
+                {% endif %}
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                暂无有效期信息数据。
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- 添加有效期规则模态框 -->
+<div class="modal fade" id="addExpiryRuleModal" tabindex="-1" aria-labelledby="addExpiryRuleModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="addExpiryRuleModalLabel">添加有效期规则</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <form method="POST" action="{{ url_for('admin.add_expiry_rule') }}">
+                <!-- 使用正确的CSRF令牌调用方式 -->
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="modal-body">
+                    <div class="form-group mb-3">
+                        <label for="item_category" class="form-label">物品类别 <span class="text-danger">*</span></label>
+                        <select class="form-select" id="item_category" name="item_category" required>
+                            <option value="防护穿戴">防护穿戴</option>
+                            <option value="灭火使用">灭火使用</option>
+                            <option value="应急疏散">应急疏散</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group mb-3">
+                        <label for="item_name" class="form-label">物品名称 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="item_name" name="item_name" required>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="normal_expiry" class="form-label">正常使用有效期(年) <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="normal_expiry" name="normal_expiry" min="0" step="0.1" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="mandatory_expiry" class="form-label">强制报废期(年)</label>
+                                <input type="number" class="form-control" id="mandatory_expiry" name="mandatory_expiry" min="0" step="0.1">
+                                <small class="form-text text-muted">留空则与正常使用有效期相同</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="description" class="form-label">规则说明</label>
+                        <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                    </div>
+                </div>
+                
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">保存规则</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 详情模态框 -->
+{% for item in expiry_items %}
+<div class="modal fade" id="detailModal-{{ item.id }}" tabindex="-1" aria-labelledby="detailModalLabel-{{ item.id }}" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="detailModalLabel-{{ item.id }}">物资有效期详细信息</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">ID</label>
+                            <p>{{ item.id }}</p>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">物资分类</label>
+                            <p>{{ item.item_category }}</p>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">物品名称</label>
+                            <p>{{ item.item_name }}</p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">正常使用有效期(年)</label>
+                            <p>{{ item.normal_expiry }}</p>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">强制报废期(年)</label>
+                            <p>{{ item.mandatory_expiry }}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">说明</label>
+                    <div class="p-2 bg-light border rounded">
+                        {% if item.description %}
+                            {{ item.description|replace('\n', '<br>')|safe }}
+                        {% else %}
+                            <span class="text-muted">无说明</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 编辑模态框 -->
+<div class="modal fade" id="editModal-{{ item.id }}" tabindex="-1" aria-labelledby="editModalLabel-{{ item.id }}" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-white">
+                <h5 class="modal-title" id="editModalLabel-{{ item.id }}">编辑有效期规则</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <form method="POST" action="{{ url_for('admin.edit_expiry_rule', rule_id=item.id) }}" class="edit-expiry-form">
+                <!-- 使用正确的CSRF令牌调用方式 -->
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                
+                <!-- 表单字段部分保持不变 -->
+                <div class="modal-body">
+                    <div class="form-group mb-3">
+                        <label for="item_category_{{ item.id }}" class="form-label">物品类别 <span class="text-danger">*</span></label>
+                        <select class="form-select" id="item_category_{{ item.id }}" name="item_category" required>
+                            <option value="防护穿戴" {% if item.item_category == '防护穿戴' %}selected{% endif %}>防护穿戴</option>
+                            <option value="灭火使用" {% if item.item_category == '灭火使用' %}selected{% endif %}>灭火使用</option>
+                            <option value="应急疏散" {% if item.item_category == '应急疏散' %}selected{% endif %}>应急疏散</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group mb-3">
+                        <label for="item_name_{{ item.id }}" class="form-label">物品名称 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="item_name_{{ item.id }}" name="item_name" required value="{{ item.item_name }}">
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="normal_expiry_{{ item.id }}" class="form-label">正常使用有效期(年) <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="normal_expiry_{{ item.id }}" name="normal_expiry" min="0" step="0.1" required value="{{ item.normal_expiry }}">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="mandatory_expiry_{{ item.id }}" class="form-label">强制报废期(年)</label>
+                                <input type="number" class="form-control" id="mandatory_expiry_{{ item.id }}" name="mandatory_expiry" min="0" step="0.1" value="{{ item.mandatory_expiry }}">
+                                <small class="form-text text-muted">留空则与正常使用有效期相同</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="description_{{ item.id }}" class="form-label">规则说明</label>
+                        <textarea class="form-control" id="description_{{ item.id }}" name="description" rows="3">{{ item.description }}</textarea>
+                    </div>
+                </div>
+                
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">保存修改</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<!-- 删除确认模态框 -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteModalLabel">确认删除</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger mb-3">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <strong>警告：此操作不可恢复！</strong>
+                </div>
+                <p>您确定要删除以下有效期规则吗？</p>
+                <table class="table table-sm table-bordered">
+                    <tr>
+                        <th style="width: 30%">规则ID</th>
+                        <td><span id="deleteRuleId"></span></td>
+                    </tr>
+                    <tr>
+                        <th>物资类别</th>
+                        <td><span id="deleteRuleCategory"></span></td>
+                    </tr>
+                    <tr>
+                        <th>物品名称</th>
+                        <td class="fw-bold text-danger"><span id="deleteRuleName"></span></td>
+                    </tr>
+                    <tr>
+                        <th>正常使用有效期</th>
+                        <td><span id="deleteRuleNormalExpiry"></span> 年</td>
+                    </tr>
+                    <tr>
+                        <th>强制报废期</th>
+                        <td><span id="deleteRuleMandatoryExpiry"></span> 年</td>
+                    </tr>
+                    <tr>
+                        <th>规则说明</th>
+                        <td><span id="deleteRuleDescription" style="white-space: pre-line;"></span></td>
+                    </tr>
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <form id="deleteForm" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash"></i> 确认删除
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // 即时执行脚本，确保在页面渲染时立即控制筛选区域状态
+    (function() {
+        // 检查URL参数，决定初始状态
+        const urlParams = new URLSearchParams(window.location.search);
+        const hasAdvancedFilter = 
+            urlParams.get('filter_category') || 
+            urlParams.get('filter_item');
+        
+        // 设置高级筛选区域的初始状态
+        const advancedFilters = document.getElementById('advancedFilters');
+        if (advancedFilters) {
+            if (!hasAdvancedFilter) {
+                // 没有高级筛选，确保初始状态为折叠
+                advancedFilters.classList.remove('show');
+                advancedFilters.style.height = '0';
+                advancedFilters.setAttribute('aria-expanded', 'false');
+            } else {
+                // 有高级筛选，确保初始状态为展开
+                advancedFilters.setAttribute('data-initial-state', 'expanded');
+            }
+        }
+    })();
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 表格行鼠标悬停效果
+    const tableRows = document.querySelectorAll('.table tbody tr');
+    tableRows.forEach(row => {
+        row.addEventListener('mouseover', function() {
+            this.style.backgroundColor = '#f8f9fa';
+        });
+        row.addEventListener('mouseout', function() {
+            this.style.backgroundColor = '';
+        });
+    });
+    
+    // 监听表单提交
+    const searchForm = document.querySelector('form');
+    if (searchForm) {
+        searchForm.addEventListener('submit', function(e) {
+            // 检查是否有高级筛选参数
+            const filterCategory = this.querySelector('[name="filter_category"]')?.value || '';
+            const filterItem = this.querySelector('[name="filter_item"]')?.value || '';
+            
+            // 如果没有高级筛选参数，确保高级筛选区域折叠
+            if (!filterCategory && !filterItem) {
+                const advancedFilters = document.getElementById('advancedFilters');
+                if (advancedFilters) {
+                    advancedFilters.classList.remove('show');
+                    
+                    // 对于仅有搜索参数的情况特殊处理
+                    const searchInput = this.querySelector('[name="search"]');
+                    if (searchInput && searchInput.value) {
+                        e.preventDefault();
+                        
+                        // 创建只包含搜索参数的URL
+                        const url = new URL(window.location.href);
+                        url.search = ''; // 清除所有参数
+                        url.searchParams.set('search', searchInput.value);
+                        
+                        // 导航到新URL
+                        window.location.href = url.toString();
+                    }
+                }
+            }
+        });
+    }
+    
+    // 确保页面加载后高级筛选区域状态正确
+    setTimeout(function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const advancedFilters = document.getElementById('advancedFilters');
+        
+        // 检查是否有高级筛选参数
+        const hasAdvancedFilters = 
+            urlParams.get('filter_category') || 
+            urlParams.get('filter_item');
+        
+        if (advancedFilters) {
+            if (hasAdvancedFilters) {
+                // 有高级筛选参数，显示高级筛选区域
+                advancedFilters.classList.add('show');
+            } else {
+                // 无高级筛选参数，隐藏高级筛选区域
+                advancedFilters.classList.remove('show');
+                
+                try {
+                    const bsCollapse = bootstrap.Collapse.getInstance(advancedFilters);
+                    if (bsCollapse) bsCollapse.hide();
+                } catch (e) {
+                    console.log('无法使用Bootstrap API控制筛选区域');
+                }
+            }
+        }
+    }, 50);
+    
+    // 删除确认模态框数据绑定
+    var deleteModal = document.getElementById('deleteModal');
+    if (deleteModal) {
+        deleteModal.addEventListener('show.bs.modal', function(event) {
+            // 获取触发按钮
+            var button = event.relatedTarget;
+            if (!button) return;
+            
+            // 从按钮的data属性中获取信息
+            var ruleId = button.getAttribute('data-rule-id') || '';
+            var ruleName = button.getAttribute('data-rule-name') || '';
+            var ruleCategory = button.getAttribute('data-rule-category') || '';
+            var normalExpiry = button.getAttribute('data-normal-expiry') || '';
+            var mandatoryExpiry = button.getAttribute('data-mandatory-expiry') || '';
+            var description = button.getAttribute('data-description') || '';
+            
+            // 更新模态框中的内容
+            document.getElementById('deleteRuleId').textContent = ruleId;
+            document.getElementById('deleteRuleName').textContent = ruleName;
+            document.getElementById('deleteRuleCategory').textContent = ruleCategory;
+            document.getElementById('deleteRuleNormalExpiry').textContent = normalExpiry;
+            document.getElementById('deleteRuleMandatoryExpiry').textContent = mandatoryExpiry;
+            document.getElementById('deleteRuleDescription').textContent = description || '无说明';
+            
+            // 设置表单的action
+            var deleteForm = document.getElementById('deleteForm');
+            if (deleteForm && ruleId) {
+                deleteForm.action = "{{ url_for('admin.delete_expiry_rule', rule_id=0) }}".replace('0', ruleId);
+            }
+        });
+    }
+});
+</script>
+
+<!-- 表单验证脚本 -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 添加有效期规则表单验证
+    const addExpiryForm = document.querySelector('#addExpiryRuleModal form');
+    if (addExpiryForm) {
+        addExpiryForm.addEventListener('submit', function(e) {
+            let valid = true;
+            
+            // 检查必填字段
+            const requiredFields = ['item_category', 'item_name', 'normal_expiry'];
+            for (const field of requiredFields) {
+                const input = this.querySelector(`#${field}`);
+                
+                if (!input.value.trim()) {
+                    // 显示错误
+                    input.classList.add('is-invalid');
+                    
+                    // 如果还没有错误信息就创建一个
+                    let errorDiv = input.nextElementSibling;
+                    if (!errorDiv || !errorDiv.classList.contains('invalid-feedback')) {
+                        errorDiv = document.createElement('div');
+                        errorDiv.className = 'invalid-feedback';
+                        errorDiv.textContent = '此字段为必填项';
+                        input.parentNode.insertBefore(errorDiv, input.nextSibling);
+                    }
+                    
+                    valid = false;
+                } else {
+                    // 清除错误
+                    input.classList.remove('is-invalid');
+                    const errorDiv = input.nextElementSibling;
+                    if (errorDiv && errorDiv.classList.contains('invalid-feedback')) {
+                        errorDiv.remove();
+                    }
+                }
+            }
+            
+            // 检查数字字段
+            const normalExpiryInput = this.querySelector('#normal_expiry');
+            const mandatoryExpiryInput = this.querySelector('#mandatory_expiry');
+            
+            if (normalExpiryInput.value && parseFloat(normalExpiryInput.value) < 0) {
+                normalExpiryInput.classList.add('is-invalid');
+                let errorDiv = normalExpiryInput.nextElementSibling;
+                if (!errorDiv || !errorDiv.classList.contains('invalid-feedback')) {
+                    errorDiv = document.createElement('div');
+                    errorDiv.className = 'invalid-feedback';
+                    errorDiv.textContent = '有效期不能为负数';
+                    normalExpiryInput.parentNode.insertBefore(errorDiv, normalExpiryInput.nextSibling);
+                }
+                valid = false;
+            }
+            
+            if (mandatoryExpiryInput.value && parseFloat(mandatoryExpiryInput.value) < 0) {
+                mandatoryExpiryInput.classList.add('is-invalid');
+                let errorDiv = mandatoryExpiryInput.nextElementSibling;
+                if (!errorDiv || !errorDiv.classList.contains('invalid-feedback')) {
+                    errorDiv = document.createElement('div');
+                    errorDiv.className = 'invalid-feedback';
+                    errorDiv.textContent = '报废期不能为负数';
+                    mandatoryExpiryInput.parentNode.insertBefore(errorDiv, mandatoryExpiryInput.nextSibling);
+                }
+                valid = false;
+            }
+            
+            if (!valid) {
+                e.preventDefault();
+            }
+        });
+    }
+    
+    // 监听模态框事件
+    const addExpiryModal = document.getElementById('addExpiryRuleModal');
+    if (addExpiryModal) {
+        addExpiryModal.addEventListener('hidden.bs.modal', function () {
+            // 清空表单
+            const form = this.querySelector('form');
+            if (form) form.reset();
+            
+            // 清除所有验证样式
+            const invalidInputs = form.querySelectorAll('.is-invalid');
+            invalidInputs.forEach(input => input.classList.remove('is-invalid'));
+            
+            const feedbacks = form.querySelectorAll('.invalid-feedback');
+            feedbacks.forEach(feedback => feedback.remove());
+        });
+    }
+});
+</script>
+
+<!-- 专门针对模态框问题的脚本 -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 查找添加按钮和模态框元素
+    const addButton = document.querySelector('button[data-bs-target="#addExpiryRuleModal"]');
+    const modalElement = document.getElementById('addExpiryRuleModal');
+    
+    if (addButton && modalElement) {
+        // 替换原生点击处理
+        addButton.addEventListener('click', function(e) {
+            e.preventDefault(); // 阻止默认行为
+            e.stopPropagation(); // 阻止事件冒泡
+            
+            // 先清理可能存在的任何模态框状态
+            cleanupModalState();
+            
+            // 延迟一点再打开模态框，确保清理完成
+            setTimeout(function() {
+                try {
+                    // 尝试使用Bootstrap API
+                    const modal = new bootstrap.Modal(modalElement);
+                    modal.show();
+                    console.log('模态框已打开:', modalElement.id);
+                } catch (err) {
+                    console.error('无法使用Bootstrap API打开模态框:', err);
+                    
+                    // 降级方案：直接操作DOM
+                    modalElement.style.display = 'block';
+                    modalElement.classList.add('show');
+                    document.body.classList.add('modal-open');
+                    
+                    // 创建背景遮罩
+                    const backdrop = document.createElement('div');
+                    backdrop.className = 'modal-backdrop fade show';
+                    document.body.appendChild(backdrop);
+                }
+            }, 50);
+        });
+        
+        // 确保关闭按钮正常工作
+        modalElement.querySelectorAll('[data-bs-dismiss="modal"]').forEach(closeBtn => {
+            closeBtn.addEventListener('click', function() {
+                cleanupModalState();
+            });
+        });
+    }
+    
+    // 清理模态框状态的函数
+    function cleanupModalState() {
+        // 移除所有可能的背景层
+        document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+            backdrop.remove();
+        });
+        
+        // 重置body样式
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+        
+        // 隐藏所有打开的模态框
+        document.querySelectorAll('.modal.show').forEach(modal => {
+            modal.classList.remove('show');
+            modal.style.display = 'none';
+        });
+        
+        console.log('模态框状态已清理');
+    }
+});
+</script>
+<script src="{{ url_for('static', filename='js/modal-manager.js') }}?v={{ cache_buster }}"></script>
+
+<!-- 增强编辑模态框的稳定性 -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 防止模态框意外关闭的处理
+    const editModals = document.querySelectorAll('[id^="editModal-"]');
+    editModals.forEach(modal => {
+        // 阻止点击模态框内容区域关闭模态框
+        const modalContent = modal.querySelector('.modal-content');
+        if (modalContent) {
+            modalContent.addEventListener('click', function(e) {
+                e.stopPropagation();
+            });
+        }
+        
+        // 阻止其他可能导致模态框关闭的事件
+        modal.addEventListener('mousedown', function(e) {
+            // 只有当点击在模态框对话框以外的区域时才关闭
+            if (e.target === modal) {
+                const rect = modal.querySelector('.modal-dialog').getBoundingClientRect();
+                if (
+                    e.clientX < rect.left || 
+                    e.clientX > rect.right || 
+                    e.clientY < rect.top || 
+                    e.clientY > rect.bottom
+                ) {
+                    // 允许关闭操作
+                } else {
+                    e.stopPropagation();
+                }
+            }
+        });
+        
+        // 防止表单中的错误导致模态框关闭
+        const form = modal.querySelector('form');
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                // 确保表单验证错误不会导致模态框关闭
+                try {
+                    // 检查CSRF令牌是否存在
+                    const csrfToken = form.querySelector('[name="csrf_token"]');
+                    if (!csrfToken || !csrfToken.value) {
+                        console.error('表单缺少CSRF令牌');
+                        // 不阻止提交，让后端处理错误
+                    }
+                } catch (err) {
+                    console.error('表单提交错误:', err);
+                }
+            });
+        }
+        
+        // 监听模态框显示和隐藏事件
+        modal.addEventListener('shown.bs.modal', function() {
+            console.log('编辑模态框已显示:', this.id);
+        });
+        
+        modal.addEventListener('hide.bs.modal', function(e) {
+            const form = this.querySelector('form');
+            
+            // 如果表单正在提交中 (有未完成的请求)，阻止模态框关闭
+            if (form && form.getAttribute('data-submitting') === 'true') {
+                console.log('表单正在提交，阻止模态框关闭');
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+            }
+        });
+    });
+});
+</script>
+
+<script>
+    // 修复模态框关闭后页面锁定的问题
+    document.addEventListener('DOMContentLoaded', function() {
+        // 监听所有模态框的hidden.bs.modal事件（关闭后触发）
+        document.querySelectorAll('.modal').forEach(function(modalElement) {
+            modalElement.addEventListener('hidden.bs.modal', function(event) {
+                console.log('模态框关闭事件触发');
+                
+                // 1. 移除所有可能残留的backdrop
+                const backdrops = document.querySelectorAll('.modal-backdrop');
+                backdrops.forEach(function(backdrop) {
+                    backdrop.remove();
+                });
+                
+                // 2. 移除body上添加的modal-open类
+                document.body.classList.remove('modal-open');
+                
+                // 3. 清除body上添加的内联样式
+                document.body.style.overflow = '';
+                document.body.style.paddingRight = '';
+                
+                console.log('页面已解锁');
+            });
+        });
+        
+        // 监听编辑模态框中的取消按钮
+        document.querySelectorAll('[data-bs-dismiss="modal"]').forEach(function(cancelBtn) {
+            cancelBtn.addEventListener('click', function(e) {
+                // 确保事件不会被阻止
+                setTimeout(function() {
+                    // 检查页面是否仍然被锁定
+                    if (document.body.classList.contains('modal-open') || 
+                        document.querySelectorAll('.modal-backdrop').length > 0) {
+                        
+                        console.log('检测到页面仍被锁定，强制解锁');
+                        // 强制执行清理
+                        document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+                        document.body.classList.remove('modal-open');
+                        document.body.style.overflow = '';
+                        document.body.style.paddingRight = '';
+                    }
+                }, 500); // 延迟执行以确保Bootstrap的事件处理已完成
+            });
+        });
+    });
+</script>
+{% endblock %}

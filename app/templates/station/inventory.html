@@ -1,0 +1,1117 @@
+{% extends 'base.html' %}
+
+{% block title %}微型消防站物资信息 - 消防安全管理系统{% endblock %}
+
+{% block styles %}
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+<style>
+    /* 模态框内容样式 */
+    .modal-body .form-label {
+        margin-bottom: 0.2rem;
+        color: #6c757d;
+    }
+    
+    .modal-body p {
+        margin-bottom: 0.5rem;
+        font-size: 1rem;
+    }
+    
+    /* 适当的间距 */
+    .modal-body .mb-3:last-child {
+        margin-bottom: 0 !important;
+    }
+    
+    /* 确保文本可以自动换行 */
+    .modal-body .p-2 {
+        white-space: pre-line;
+    }
+    
+    /* 权限控制按钮样式 */
+    .btn.permission-disabled {
+        cursor: not-allowed;
+        opacity: 0.65;
+        pointer-events: all !important; /* 覆盖Bootstrap默认行为，允许点击事件 */
+    }
+    
+    /* Toast提示框样式 */
+    .permission-toast {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 1090;
+        min-width: 250px;
+        background-color: #f44336;
+        color: white;
+        text-align: center;
+        border-radius: 4px;
+        padding: 16px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        transition: all 0.3s ease;
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    
+    .permission-toast.show {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    
+    .permission-toast-icon {
+        margin-right: 8px;
+    }
+    
+    .permission-toast-close {
+        float: right;
+        font-weight: bold;
+        cursor: pointer;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2 class="mb-4">微型消防站物资信息</h2>
+    
+    <!-- 修改搜索和筛选按钮布局 -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="card-title">搜索筛选</h5>
+        </div>
+        <div class="card-body">
+            <!-- 搜索表单 -->
+            <form method="get" action="{{ url_for('station.index') }}" class="row g-3">
+                <!-- 将搜索框和所有按钮放在同一行 -->
+                <div class="col-md-12">
+                    <div class="input-group">
+                        <!-- 搜索输入框 -->
+                        <input type="text" class="form-control" placeholder="搜索任意字段..." name="search" value="{{ search or '' }}">
+                        
+                        <!-- 搜索按钮 -->
+                        <button class="btn btn-primary" type="submit">
+                            <i class="bi bi-search"></i> 搜索
+                        </button>
+                        
+                        <!-- 高级筛选按钮 - 现在放在搜索按钮旁边 -->
+                        <button type="button" class="btn btn-outline-secondary" data-bs-toggle="collapse" 
+                                data-bs-target="#advancedFilters" 
+                                aria-expanded="{{ 'true' if filter_area or filter_item or filter_manufacturer else 'false' }}">
+                            <i class="bi bi-funnel"></i> 高级筛选
+                            {% if filter_area or filter_item or filter_manufacturer %}
+                            <span class="badge bg-primary">已筛选</span>
+                            {% endif %}
+                        </button>
+                        
+                        <!-- 清除筛选按钮 -->
+                        {% if search or filter_area or filter_item or filter_manufacturer %}
+                        <a href="{{ url_for('station.index') }}" class="btn btn-secondary">
+                            <i class="bi bi-x-circle"></i> 清除筛选
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- 高级筛选区域保持不变 -->
+                <div class="col-12">
+                    <div class="collapse {{ 'show' if filter_area or filter_item or filter_manufacturer else '' }}" id="advancedFilters">
+                        <div class="card card-body mt-3">
+                            <div class="row g-3">
+                                <!-- 设备区域筛选 -->
+                                <div class="col-md-4">
+                                    <label for="filter_area" class="form-label">设备区域</label>
+                                    <select class="form-select" id="filter_area" name="filter_area">
+                                        <option value="">-- 全部 --</option>
+                                        {% for area in area_list %}
+                                        <option value="{{ area }}" {% if filter_area == area %}selected{% endif %}>{{ area }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                
+                                <!-- 物品名称筛选 -->
+                                <div class="col-md-4">
+                                    <label for="filter_item" class="form-label">物品名称</label>
+                                    <select class="form-select" id="filter_item" name="filter_item">
+                                        <option value="">-- 全部 --</option>
+                                        {% for item in item_list %}
+                                        <option value="{{ item }}" {% if filter_item == item %}selected{% endif %}>{{ item }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                
+                                <!-- 生产厂家筛选 -->
+                                <div class="col-md-4">
+                                    <label for="filter_manufacturer" class="form-label">生产厂家</label>
+                                    <select class="form-select" id="filter_manufacturer" name="filter_manufacturer">
+                                        <option value="">-- 全部 --</option>
+                                        {% for manufacturer in manufacturer_list %}
+                                        <option value="{{ manufacturer }}" {% if filter_manufacturer == manufacturer %}selected{% endif %}>{{ manufacturer }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-3 d-flex justify-content-between">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-filter"></i> 应用筛选
+                                </button>
+                                
+                                {% if filter_area or filter_item or filter_manufacturer %}
+                                <a href="{{ url_for('station.index', search=search) }}" class="btn btn-outline-secondary">
+                                    <i class="bi bi-eraser"></i> 仅清除高级筛选
+                                </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span>物资列表 {% if total_count %}<span class="badge bg-info">{{ total_count }}条记录</span>{% endif %}</span>
+            
+            <!-- 添加物资按钮权限控制 -->
+            {% if current_user.role == 'admin' or user_can_add %}
+                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addStationModal">添加物资</button>
+            {% else %}
+                <button class="btn btn-primary btn-sm permission-disabled" data-permission-operation="添加" data-permission-global="true">添加物资</button>
+            {% endif %}
+        </div>
+        <div class="card-body">
+            {% if equipments %}
+            <div class="table-responsive">
+                <table class="table table-striped table-hover" id="stationTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>设备区域编码</th>
+                            <th>设备区域</th>
+                            <th>物品名称</th>
+                            <th>生产厂家</th>
+                            <th>型号</th>
+                            <th>数量</th>
+                            <th>生产日期</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for equipment in equipments %}
+                        <tr>
+                            <td>{{ equipment.id }}</td>
+                            <td>{{ equipment.area_code }}</td>
+                            <td>{{ equipment.area_name }}</td>
+                            <td>{{ equipment.item_name }}</td>
+                            <td>{{ equipment.manufacturer }}</td>
+                            <td>{{ equipment.model }}</td>
+                            <td>{{ equipment.quantity }}</td>
+                            <td>{{ equipment.production_date }}</td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <!-- 详情按钮总是可用的 -->
+                                    <button class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#detailModal-{{ equipment.id }}">详情</button>
+                                    
+                                    <!-- 编辑按钮根据权限控制 -->
+                                    {% if current_user.role == 'admin' or (equipment.area_code in user_permissions and user_permissions[equipment.area_code].can_edit) %}
+                                        <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editModal-{{ equipment.id }}">编辑</button>
+                                    {% else %}
+                                        <button class="btn btn-sm btn-warning permission-disabled" data-permission-operation="编辑" data-area-name="{{ equipment.area_name }}">编辑</button>
+                                    {% endif %}
+                                    
+                                    <!-- 删除按钮根据权限控制 -->
+                                    {% if current_user.role == 'admin' or (equipment.area_code in user_permissions and user_permissions[equipment.area_code].can_delete) %}
+                                        <button class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal" 
+                                                data-station-id="{{ equipment.id }}"
+                                                data-station-name="{{ equipment.item_name }}"
+                                                data-station-area="{{ equipment.area_name }}"
+                                                data-station-area-code="{{ equipment.area_code }}"
+                                                data-station-model="{{ equipment.model }}"
+                                                data-station-quantity="{{ equipment.quantity }}"
+                                                data-station-manufacturer="{{ equipment.manufacturer }}"
+                                                data-station-remark="{{ equipment.remark }}">删除</button>
+                                    {% else %}
+                                        <button class="btn btn-sm btn-danger permission-disabled" data-permission-operation="删除" data-area-name="{{ equipment.area_name }}">删除</button>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                
+                <!-- 修改分页控件，添加第一页和最后一页按钮 -->
+
+                {% if pagination and pagination.pages > 1 %}
+                <nav aria-label="数据分页">
+                    <ul class="pagination justify-content-center">
+                        <!-- 第一页按钮 -->
+                        <li class="page-item {% if pagination.page == 1 %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('station.index', page=1, search=search, filter_area=filter_area, filter_item=filter_item, filter_manufacturer=filter_manufacturer) if pagination.page != 1 else '#' }}" aria-label="第一页">
+                                <span aria-hidden="true">&laquo;&laquo;</span>
+                            </a>
+                        </li>
+                        
+                        <!-- 上一页按钮 -->
+                        <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('station.index', page=pagination.prev_num, search=search, filter_area=filter_area, filter_item=filter_item, filter_manufacturer=filter_manufacturer) if pagination.has_prev else '#' }}" aria-label="上一页">
+                                <span aria-hidden="true">&laquo;</span>
+                            </a>
+                        </li>
+                        
+                        <!-- 页码 -->
+                        {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                            {% if p %}
+                                {% if p == pagination.page %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ p }}</span>
+                                </li>
+                                {% else %}
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('station.index', page=p, search=search, filter_area=filter_area, filter_item=filter_item, filter_manufacturer=filter_manufacturer) }}">{{ p }}</a>
+                                </li>
+                                {% endif %}
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        <!-- 下一页按钮 -->
+                        <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('station.index', page=pagination.next_num, search=search, filter_area=filter_area, filter_item=filter_item, filter_manufacturer=filter_manufacturer) if pagination.has_next else '#' }}" aria-label="下一页">
+                                <span aria-hidden="true">&raquo;</span>
+                            </a>
+                        </li>
+                        
+                        <!-- 最后一页按钮 -->
+                        <li class="page-item {% if pagination.page == pagination.pages %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('station.index', page=pagination.pages, search=search, filter_area=filter_area, filter_item=filter_item, filter_manufacturer=filter_manufacturer) if pagination.page != pagination.pages else '#' }}" aria-label="最后一页">
+                                <span aria-hidden="true">&raquo;&raquo;</span>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+                {% endif %}
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                暂无物资信息或您没有权限查看。
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- 修复添加物资模态框的HTML结构错误：删除错误的闭合标签 -->
+<div class="modal fade" id="addStationModal" tabindex="-1" aria-labelledby="addStationModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="addStationModalLabel">添加物资</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <form method="POST" action="{{ url_for('station.add_station') }}" id="addStationForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <!-- 修改区域编码为下拉框，只显示有权限的区域 -->
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="area_code" class="form-label">区域编码 <span class="text-danger">*</span></label>
+                                <select class="form-select" id="area_code" name="area_code" required>
+                                    <option value="">-- 请选择区域编码 --</option>
+                                    {% for area in responsible_area_list %}
+                                        {% set area_code_str = area.code|string %}
+                                        {% if current_user.role == 'admin' or (area_code_str in user_permissions and user_permissions[area_code_str].can_add) %}
+                                        <option value="{{ area.code }}" data-area-name="{{ area.name }}">{{ area.code }}</option>
+                                        {% endif %}
+                                    {% endfor %}
+                                </select>
+                                <div id="areaCodeFeedback" class="invalid-feedback">
+                                    请选择一个有效的区域编码
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 修改区域名称为下拉框，只显示有权限的区域 -->
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="area_name" class="form-label">区域名称 <span class="text-danger">*</span></label>
+                                <select class="form-select" id="area_name" name="area_name" required>
+                                    <option value="">-- 请选择区域名称 --</option>
+                                    {% for area in responsible_area_list %}
+                                        {% set area_code_str = area.code|string %}
+                                        {% if current_user.role == 'admin' or (area_code_str in user_permissions and user_permissions[area_code_str].can_add) %}
+                                        <option value="{{ area.name }}" data-area-code="{{ area.code }}">{{ area.name }}</option>
+                                        {% endif %}
+                                    {% endfor %}
+                                </select>
+                                <div id="areaNameFeedback" class="invalid-feedback">
+                                    请选择一个有效的区域名称
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 修复添加物资表单中的物资名称字段部分 -->
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="item_name" class="form-label">物品名称 <span class="text-danger">*</span></label>
+                                <select class="form-select" id="item_name" name="item_name" required>
+                                    <option value="">-- 请选择物资 --</option>
+                                    {% for name in item_names_list %}
+                                        <option value="{{ name }}">{{ name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">请从有效期表中选择物资名称</div>
+                            </div>
+                        </div>
+
+                        <!-- 修复表单其他字段 -->
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="manufacturer" class="form-label">生产厂家</label>
+                                <input type="text" class="form-control" id="manufacturer" name="manufacturer">
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="model" class="form-label">规格型号</label>
+                                <input type="text" class="form-control" id="model" name="model">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="quantity" class="form-label">数量 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="quantity" name="quantity" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="production_date" class="form-label">生产日期</label>
+                                <input type="date" class="form-control" id="production_date" name="production_date">
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="mb-3">
+                                <label for="remark" class="form-label">备注</label>
+                                <textarea class="form-control" id="remark" name="remark" rows="3"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary" id="submitAddStation">添加物资</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 详情模态框 -->
+{% for equipment in equipments %}
+<div class="modal fade" id="detailModal-{{ equipment.id }}" tabindex="-1" aria-labelledby="detailModalLabel-{{ equipment.id }}" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="detailModalLabel-{{ equipment.id }}">物资详细信息</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">ID</label>
+                            <p>{{ equipment.id }}</p>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">设备区域编码</label>
+                            <p>{{ equipment.area_code }}</p>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">设备区域</label>
+                            <p>{{ equipment.area_name }}</p>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">物品名称</label>
+                            <p>{{ equipment.item_name }}</p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">生产厂家</label>
+                            <p>{{ equipment.manufacturer }}</p>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">型号</label>
+                            <p>{{ equipment.model }}</p>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">数量</label>
+                            <p>{{ equipment.quantity }}</p>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">生产日期</label>
+                            <p>{{ equipment.production_date }}</p>
+                        </div>
+                    </div>
+                </div>
+                
+                {% if equipment.remark %}
+                <div class="mb-3">
+                    <label class="form-label fw-bold">备注</label>
+                    <div class="p-2 bg-light border rounded">
+                        {{ equipment.remark|replace('\n', '<br>')|safe }}
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if equipment.description %}
+                <div class="mb-3">
+                    <label class="form-label fw-bold">说明</label>
+                    <div class="p-2 bg-light border rounded">
+                        {{ equipment.description|replace('\n', '<br>')|safe }}
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if equipment.expiry_date %}
+                <div class="mb-3">
+                    <label class="form-label fw-bold">到期日期</label>
+                    <p>{{ equipment.expiry_date }}</p>
+                </div>
+                {% endif %}
+                
+                {% if equipment.maintenance_records %}
+                <div class="mb-3">
+                    <label class="form-label fw-bold">维护记录</label>
+                    <div class="p-2 bg-light border rounded">
+                        {{ equipment.maintenance_records|replace('\n', '<br>')|safe }}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<!-- 添加编辑模态框 -->
+
+<!-- 在删除确认模态框前添加编辑模态框 -->
+{% for equipment in equipments %}
+<div class="modal fade" id="editModal-{{ equipment.id }}" tabindex="-1" aria-labelledby="editModalLabel-{{ equipment.id }}" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-white">
+                <h5 class="modal-title" id="editModalLabel-{{ equipment.id }}">编辑物资信息</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <form method="POST" action="{{ url_for('station.edit_station', equipment_id=equipment.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="edit_area_code_{{ equipment.id }}" class="form-label">设备区域编码 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="edit_area_code_{{ equipment.id }}" name="area_code" required value="{{ equipment.area_code }}" readonly>
+                                <small class="text-muted">区域编码不可修改</small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="edit_area_name_{{ equipment.id }}" class="form-label">设备区域名称 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="edit_area_name_{{ equipment.id }}" name="area_name" required value="{{ equipment.area_name }}" readonly>
+                                <small class="text-muted">区域名称不可修改</small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="edit_item_name_{{ equipment.id }}" class="form-label">物品名称 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="edit_item_name_{{ equipment.id }}" name="item_name" required value="{{ equipment.item_name }}">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="edit_manufacturer_{{ equipment.id }}" class="form-label">生产厂家</label>
+                                <input type="text" class="form-control" id="edit_manufacturer_{{ equipment.id }}" name="manufacturer" value="{{ equipment.manufacturer }}">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="edit_model_{{ equipment.id }}" class="form-label">规格型号</label>
+                                <input type="text" class="form-control" id="edit_model_{{ equipment.id }}" name="model" value="{{ equipment.model }}">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="edit_quantity_{{ equipment.id }}" class="form-label">数量 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="edit_quantity_{{ equipment.id }}" name="quantity" required value="{{ equipment.quantity }}">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="edit_production_date_{{ equipment.id }}" class="form-label">生产日期</label>
+                                <input type="date" class="form-control" id="edit_production_date_{{ equipment.id }}" name="production_date" value="{{ equipment.production_date.strftime('%Y-%m-%d') if equipment.production_date else '' }}">
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="mb-3">
+                                <label for="edit_remark_{{ equipment.id }}" class="form-label">备注</label>
+                                <textarea class="form-control" id="edit_remark_{{ equipment.id }}" name="remark" rows="3">{{ equipment.remark }}</textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save"></i> 保存修改
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<!-- 删除确认模态框 -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteModalLabel">确认删除</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger mb-3">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <strong>警告：此操作不可恢复！</strong>
+                </div>
+                <p>您确定要删除以下物资信息吗？</p>
+                <table class="table table-sm table-bordered">
+                    <tr>
+                        <th style="width: 30%">物资ID</th>
+                        <td><span id="deleteItemId"></span></td>
+                    </tr>
+                    <tr>
+                        <th>区域编码</th>
+                        <td><span id="deleteItemAreaCode"></span></td>
+                    </tr>
+                    <tr>
+                        <th>所属区域</th>
+                        <td><span id="deleteItemArea"></span></td>
+                    </tr>
+                    <tr>
+                        <th>物品名称</th>
+                        <td><span id="deleteItemName" class="fw-bold text-danger"></span></td>
+                    </tr>
+                    <tr>
+                        <th>型号规格</th>
+                        <td><span id="deleteItemModel"></span></td>
+                    </tr>
+                    <tr>
+                        <th>数量</th>
+                        <td><span id="deleteItemQuantity"></span></td>
+                    </tr>
+                    <tr>
+                        <th>生产厂家</th>
+                        <td><span id="deleteItemManufacturer"></span></td>
+                    </tr>
+                    <tr>
+                        <th>备注</th>
+                        <td><span id="deleteItemRemark"></span></td>
+                    </tr>
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <form id="deleteForm" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash"></i> 确认删除
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 添加权限提示容器 -->
+<div id="permissionToastContainer"></div>
+
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+// 全局数据对象
+var DATA = {
+    isAdmin: {% if current_user.role == 'admin' %}true{% else %}false{% endif %},
+    hasFilters: {% if filter_area or filter_item or filter_manufacturer %}true{% else %}false{% endif %},
+    userPermissions: {{ user_permissions|tojson|safe if user_permissions else '{}' }},
+    responsibleAreas: [
+        {% for area in responsible_area_list %}
+        {code: "{{ area.code }}", name: "{{ area.name }}"},
+        {% endfor %}
+    ]
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+    // 获取页面元素
+    const addStationForm = document.getElementById('addStationForm');
+    const areaCodeSelect = document.getElementById('area_code');
+    const areaNameSelect = document.getElementById('area_name');
+    const submitAddStationBtn = document.getElementById('submitAddStation');
+    
+    // 根据筛选条件决定是否显示高级筛选区域
+    if (DATA.hasFilters) {
+        var advancedFilters = document.getElementById('advancedFilters');
+        if (advancedFilters) {
+            // 确保高级筛选区域展开
+            advancedFilters.classList.add('show');
+            
+            // 更新按钮状态
+            var filterButton = document.querySelector('[data-bs-target="#advancedFilters"]');
+            if (filterButton) {
+                filterButton.setAttribute('aria-expanded', 'true');
+            }
+        }
+    }
+    
+    // 监听所有模态框的hidden.bs.modal事件
+    document.querySelectorAll('.modal').forEach(function(modalElement) {
+        modalElement.addEventListener('hidden.bs.modal', function() {
+            // 移除所有可能残留的backdrop
+            var backdrops = document.querySelectorAll('.modal-backdrop');
+            for (var i = 0; i < backdrops.length; i++) {
+                backdrops[i].remove();
+            }
+            // 移除body上添加的类
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+        });
+    });
+    
+    // 删除确认模态框数据绑定
+    var deleteModal = document.getElementById('deleteModal');
+    if (deleteModal) {
+        deleteModal.addEventListener('show.bs.modal', function(event) {
+            // 获取触发按钮
+            var button = event.relatedTarget;
+            if (!button) return;
+            
+            // 从按钮的data属性中获取信息
+            var stationId = button.getAttribute('data-station-id') || '';
+            var stationName = button.getAttribute('data-station-name') || '';
+            var stationArea = button.getAttribute('data-station-area') || '';
+            var stationAreaCode = button.getAttribute('data-station-area-code') || '';
+            var stationModel = button.getAttribute('data-station-model') || '';
+            var stationQuantity = button.getAttribute('data-station-quantity') || '';
+            var stationManufacturer = button.getAttribute('data-station-manufacturer') || '';
+            var stationRemark = button.getAttribute('data-station-remark') || '';
+            
+            // 更新模态框中的内容
+            var idElement = document.getElementById('deleteItemId');
+            if (idElement) idElement.textContent = stationId;
+            
+            var nameElement = document.getElementById('deleteItemName');
+            if (nameElement) nameElement.textContent = stationName;
+            
+            var areaElement = document.getElementById('deleteItemArea');
+            if (areaElement) areaElement.textContent = stationArea;
+            
+            var areaCodeElement = document.getElementById('deleteItemAreaCode');
+            if (areaCodeElement) areaCodeElement.textContent = stationAreaCode || '无';
+            
+            var modelElement = document.getElementById('deleteItemModel');
+            if (modelElement) modelElement.textContent = stationModel || '无';
+            
+            var quantityElement = document.getElementById('deleteItemQuantity');
+            if (quantityElement) quantityElement.textContent = stationQuantity || '无';
+            
+            var manufacturerElement = document.getElementById('deleteItemManufacturer');
+            if (manufacturerElement) manufacturerElement.textContent = stationManufacturer || '无';
+            
+            var remarkElement = document.getElementById('deleteItemRemark');
+            if (remarkElement) remarkElement.textContent = stationRemark || '无';
+            
+            // 设置表单的action
+            var deleteForm = document.getElementById('deleteForm');
+            if (deleteForm && stationId) {
+                deleteForm.action = '/station/delete/' + stationId;
+            }
+        });
+    }
+    
+    // 表单验证
+    if (addStationForm) {
+        addStationForm.addEventListener('submit', function(event) {
+            var requiredFields = this.querySelectorAll('[required]');
+            var valid = true;
+            
+            for (var i = 0; i < requiredFields.length; i++) {
+                var field = requiredFields[i];
+                if (!field.value.trim()) {
+                    valid = false;
+                    field.classList.add('is-invalid');
+                } else {
+                    field.classList.remove('is-invalid');
+                }
+            }
+            
+            if (!valid) {
+                event.preventDefault();
+                alert('请填写所有必填字段');
+            }
+        });
+    }
+    
+    // 区域选择器逻辑（针对普通用户）
+    const areaSelector = document.getElementById('area_selector');
+    if (areaSelector) {
+        areaSelector.addEventListener('change', function() {
+            const selectedOption = this.options[this.selectedIndex];
+            const areaCode = this.value;
+            const areaName = selectedOption.getAttribute('data-area-name');
+            
+            // 更新隐藏字段的值
+            document.getElementById('area_code').value = areaCode;
+            document.getElementById('area_name').value = areaName;
+        });
+    }
+    
+    // 处理区域编码和名称下拉框联动
+    if (areaCodeSelect && areaNameSelect) {
+        // 当区域编码选择变化时
+        areaCodeSelect.addEventListener('change', function() {
+            const selectedAreaCode = this.value;
+            const selectedOption = this.options[this.selectedIndex];
+            
+            // 重置区域名称下拉框
+            areaNameSelect.selectedIndex = 0;
+            
+            // 如果选择了区域编码，则自动选择对应的区域名称
+            if (selectedAreaCode) {
+                const areaName = selectedOption.getAttribute('data-area-name');
+                
+                // 查找并选择对应的区域名称选项
+                for (let i = 0; i < areaNameSelect.options.length; i++) {
+                    if (areaNameSelect.options[i].value === areaName) {
+                        areaNameSelect.selectedIndex = i;
+                        break;
+                    }
+                }
+            }
+            
+            // 移除验证错误样式
+            this.classList.remove('is-invalid');
+        });
+        
+        // 当区域名称选择变化时
+        areaNameSelect.addEventListener('change', function() {
+            const selectedAreaName = this.value;
+            const selectedOption = this.options[this.selectedIndex];
+            
+            // 重置区域编码下拉框
+            areaCodeSelect.selectedIndex = 0;
+            
+            // 如果选择了区域名称，则自动选择对应的区域编码
+            if (selectedAreaName) {
+                const areaCode = selectedOption.getAttribute('data-area-code');
+                
+                // 查找并选择对应的区域编码选项
+                for (let i = 0; i < areaCodeSelect.options.length; i++) {
+                    if (areaCodeSelect.options[i].value === areaCode) {
+                        areaCodeSelect.selectedIndex = i;
+                        break;
+                    }
+                }
+            }
+            
+            // 移除验证错误样式
+            this.classList.remove('is-invalid');
+        });
+    }
+    
+    // 处理权限禁用按钮的点击
+    document.querySelectorAll('.permission-disabled').forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // 获取操作类型和区域名称
+            const operation = this.getAttribute('data-permission-operation');
+            const isGlobal = this.getAttribute('data-permission-global') === 'true';
+            const areaName = this.getAttribute('data-area-name');
+            
+            // 显示权限不足提示
+            if (isGlobal) {
+                // 显示全局权限提示（不带区域名称）
+                showGlobalPermissionDeniedToast(operation);
+            } else {
+                // 显示区域特定的权限提示
+                showPermissionDeniedToast(operation, areaName);
+            }
+        });
+    });
+    
+    // 显示区域特定的权限不足提示
+    function showPermissionDeniedToast(operation, areaName) {
+        // 创建提示框元素
+        const toastElement = document.createElement('div');
+        toastElement.className = 'permission-toast';
+        toastElement.innerHTML = `
+            <span class="permission-toast-close">&times;</span>
+            <i class="bi bi-exclamation-triangle-fill permission-toast-icon"></i>
+            <span>您没有权限${operation}区域 [${areaName}] 的物资</span>
+        `;
+        
+        showToast(toastElement);
+    }
+    
+    // 显示全局权限不足提示（不带区域名称）
+    function showGlobalPermissionDeniedToast(operation) {
+        // 创建提示框元素
+        const toastElement = document.createElement('div');
+        toastElement.className = 'permission-toast';
+        toastElement.innerHTML = `
+            <span class="permission-toast-close">&times;</span>
+            <i class="bi bi-exclamation-triangle-fill permission-toast-icon"></i>
+            <span>您没有权限${operation}物资</span>
+        `;
+        
+        showToast(toastElement);
+    }
+    
+    // 显示提示框的公共函数
+    function showToast(toastElement) {
+        // 添加到容器
+        const container = document.getElementById('permissionToastContainer');
+        container.appendChild(toastElement);
+        
+        // 显示提示框
+        setTimeout(() => {
+            toastElement.classList.add('show');
+        }, 10);
+        
+        // 设置自动关闭
+        const closeTimeout = setTimeout(() => {
+            closeToast(toastElement);
+        }, 3000);
+        
+        // 关闭按钮事件
+        const closeBtn = toastElement.querySelector('.permission-toast-close');
+        closeBtn.addEventListener('click', () => {
+            clearTimeout(closeTimeout);
+            closeToast(toastElement);
+        });
+    }
+    
+    // 关闭提示框的函数
+    function closeToast(toastElement) {
+        toastElement.classList.remove('show');
+        setTimeout(() => {
+            toastElement.remove();
+        }, 300);
+    }
+    
+    // ===== 添加物资权限验证功能 =====
+    
+    // 打印调试信息 - 使用预加载的数据
+    function debugAreaOptions() {
+        if (areaCodeSelect) {
+            console.log("区域编码选项数量:", areaCodeSelect.options.length);
+            for (let i = 0; i < areaCodeSelect.options.length; i++) {
+                console.log(`选项 ${i}: ${areaCodeSelect.options[i].value} - ${areaCodeSelect.options[i].text}`);
+            }
+        }
+        
+        console.log("负责区域列表:", DATA.responsibleAreas); 
+        console.log("用户权限:", DATA.userPermissions);
+    }
+    
+    // 检查是否有任何可选区域（是否有添加权限）- 使用预加载的数据
+    function checkHasPermission() {
+        // 添加详细调试日志
+        console.log("开始检查添加权限");
+        
+        // 判断用户是否为管理员
+        if (DATA.isAdmin) {
+            console.log("用户是管理员，具有添加权限");
+            return true;
+        }
+        
+        // 检查区域选择框是否存在
+        if (!areaCodeSelect) {
+            console.log("未找到区域选择框元素");
+            return false;
+        }
+        
+        // 检查是否有区域可选
+        const hasOptions = areaCodeSelect.options.length > 1; // 除了默认选项外是否有其他选项
+        console.log("下拉框中的选项数量:", areaCodeSelect.options.length);
+        
+        // 详细打印用户权限数据，查看格式和内容
+        console.log("用户权限对象:", DATA.userPermissions);
+        console.log("负责区域列表:", DATA.responsibleAreas);
+        
+        // 生成用户有权限的区域编码列表（字符串形式）
+        const permittedAreaCodes = [];
+        for (const areaCode in DATA.userPermissions) {
+            if (DATA.userPermissions[areaCode].can_add) {
+                permittedAreaCodes.push(areaCode);
+                console.log(`用户有区域 ${areaCode} 的添加权限`);
+            }
+        }
+        
+        console.log("用户有添加权限的区域编码:", permittedAreaCodes);
+        
+        // 检查负责区域列表中是否有用户有权限的区域
+        let hasPermittedArea = false;
+        for (const area of DATA.responsibleAreas) {
+            // 将区域编码转换为字符串进行比较
+            const areaCodeStr = String(area.code);
+            if (permittedAreaCodes.includes(areaCodeStr)) {
+                hasPermittedArea = true;
+                console.log(`找到用户有权限的区域: ${areaCodeStr} - ${area.name}`);
+                break;
+            }
+        }
+        
+        // 基于实际权限数据判断，而不仅仅依赖下拉框选项
+        if ((!hasOptions || !hasPermittedArea) && submitAddStationBtn) {
+            // 如果没有区域选项，显示提示并禁用提交按钮
+            submitAddStationBtn.disabled = true;
+            
+            // 创建提示信息
+            let alertDiv = document.getElementById('no-permission-alert');
+            if (!alertDiv && addStationForm) {
+                alertDiv = document.createElement('div');
+                alertDiv.id = 'no-permission-alert';
+                alertDiv.className = 'alert alert-warning mt-3';
+                alertDiv.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-2"></i>您没有任何区域的添加权限，请联系管理员';
+                
+                // 将提示添加到表单开始位置
+                const modalBody = addStationForm.querySelector('.modal-body');
+                if (modalBody) {
+                    modalBody.insertBefore(alertDiv, modalBody.firstChild);
+                }
+            }
+            return false;
+        } else if (submitAddStationBtn) {
+            // 如果有权限，确保按钮可用
+            submitAddStationBtn.disabled = false;
+            
+            // 移除可能存在的提示信息
+            const alertDiv = document.getElementById('no-permission-alert');
+            if (alertDiv) {
+                alertDiv.remove();
+            }
+            return true;
+        }
+        
+        // 最终基于两个条件共同判断
+        return hasOptions && hasPermittedArea;
+    }
+    
+    // 提交前确保权限检查 - 使用预加载的数据
+    if (addStationForm) {
+        addStationForm.addEventListener('submit', function(e) {
+            if (!areaCodeSelect || !areaNameSelect) return true;
+            
+            const areaCode = areaCodeSelect.value;
+            const areaName = areaNameSelect.value;
+            
+            // 前端验证区域选择是否有效
+            if (!areaCode || !areaName) {
+                e.preventDefault();
+                
+                if (!areaCode) {
+                    areaCodeSelect.classList.add('is-invalid');
+                }
+                
+                if (!areaName) {
+                    areaNameSelect.classList.add('is-invalid');
+                }
+                
+                return false;
+            }
+            
+            // 检查权限 - 管理员直接通过
+            if (!DATA.isAdmin) {
+                try {
+                    const userPermObj = DATA.userPermissions;
+                    if (!userPermObj[areaCode] || !userPermObj[areaCode].can_add) {
+                        e.preventDefault();
+                        alert('您没有在该区域添加物资的权限');
+                        return false;
+                    }
+                } catch (error) {
+                    console.error('权限检查错误:', error);
+                }
+            }
+            
+            return true;
+        });
+    }
+    
+    // 延迟执行权限检查，确保DOM完全加载
+    setTimeout(() => {
+        debugAreaOptions();
+        checkHasPermission();
+    }, 500);
+    
+    // 为物资名称下拉菜单添加搜索过滤功能
+    const itemNameSelect = document.getElementById('item_name');
+    if (itemNameSelect) {
+        // 保存原始选项供之后过滤使用
+        const originalOptions = Array.from(itemNameSelect.options);
+        
+        // 创建搜索输入框
+        const searchInput = document.createElement('input');
+        searchInput.type = 'text';
+        searchInput.placeholder = '输入关键字筛选物资...';
+        searchInput.className = 'form-control mb-2';
+        
+        // 插入搜索框到下拉菜单之前
+        itemNameSelect.parentNode.insertBefore(searchInput, itemNameSelect);
+        
+        // 监听搜索输入
+        searchInput.addEventListener('input', function() {
+            const filterText = this.value.toLowerCase();
+            
+            // 清除当前选项
+            itemNameSelect.innerHTML = '';
+            
+            // 添加默认选项
+            const defaultOption = document.createElement('option');
+            defaultOption.value = '';
+            defaultOption.text = '-- 请选择物资 --';
+            itemNameSelect.add(defaultOption);
+            
+            // 过滤并添加匹配的选项
+            for (const option of originalOptions) {
+                if (option.value && option.text.toLowerCase().includes(filterText)) {
+                    itemNameSelect.add(option.cloneNode(true));
+                }
+            }
+            
+            // 如果没有匹配项，显示提示信息
+            if (itemNameSelect.options.length === 1) {
+                const noMatchOption = document.createElement('option');
+                noMatchOption.disabled = true;
+                noMatchOption.text = '无匹配项';
+                itemNameSelect.add(noMatchOption);
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

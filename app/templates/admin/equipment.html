@@ -1,0 +1,267 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<!-- 添加物资模态框 -->
+<div class="modal fade" id="addEquipmentModal" tabindex="-1" aria-labelledby="addEquipmentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addEquipmentModalLabel">添加物资信息</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <form method="POST" action="{{ url_for('admin.add_equipment') }}">
+                {{ form.csrf_token }}
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label class="form-label">区域编码</label>
+                                {{ form.area_code(class="form-control") }}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label class="form-label">区域名称</label>
+                                {{ form.area_name(class="form-control") }}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label class="form-label">物资类别</label>
+                                {{ form.category(class="form-control") }}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label class="form-label">物资名称</label>
+                                {{ form.name(class="form-control") }}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label class="form-label">规格型号</label>
+                                {{ form.model(class="form-control") }}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label class="form-label">计量单位</label>
+                                {{ form.unit(class="form-control") }}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label class="form-label">数量</label>
+                                {{ form.quantity(class="form-control") }}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label class="form-label">生产厂家</label>
+                                {{ form.manufacturer(class="form-control") }}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label class="form-label">状态</label>
+                                {{ form.status(class="form-select") }}
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-group">
+                                <label class="form-label">备注说明</label>
+                                {{ form.description(class="form-control", rows="3") }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 添加打开模态框的按钮 -->
+<button class="btn btn-primary mb-3" type="button" data-bs-toggle="modal" data-bs-target="#addEquipmentModal">
+    <i class="bi bi-plus-circle"></i> 添加物资
+</button>
+
+<!-- 搜索筛选区域 -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="card-title">搜索筛选</h5>
+    </div>
+    <div class="card-body">
+        <form method="get" action="{{ url_for('admin.equipment') }}" class="row g-3" id="filterForm">
+            <!-- 全局搜索框 -->
+            <div class="col-md-6">
+                <div class="input-group">
+                    <input type="text" class="form-control" placeholder="搜索任意字段..." name="search" value="{{ request.args.get('search', '') }}">
+                    <button class="btn btn-primary" type="submit">
+                        <i class="bi bi-search"></i> 搜索
+                    </button>
+                </div>
+            </div>
+
+            <!-- 物资名称筛选 -->
+            <div class="col-md-6">
+                <div class="input-group">
+                    <input type="text" class="form-control" placeholder="按物资名称筛选..."
+                           name="filter_item" value="{{ request.args.get('filter_item', '') }}">
+                    <button type="submit" class="btn btn-primary">筛选</button>
+                </div>
+            </div>
+
+            <!-- 高级筛选按钮 -->
+            <div class="col-md-6">
+                <button type="button" class="btn btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#advancedFilters">
+                    <i class="bi bi-funnel"></i> 高级筛选
+                    {% if request.args.get('filter_category') or request.args.get('filter_status') %}
+                    <span class="badge bg-primary ms-2">已筛选</span>
+                    {% endif %}
+                </button>
+            </div>
+
+            <!-- 高级筛选区域 - 初始状态为折叠，只在有高级筛选条件时显示 -->
+            <div class="collapse mt-3" id="advancedFilters">
+                <!-- ...existing code... -->
+            </div>
+
+            <!-- 显示筛选状态和清除按钮 -->
+            {% if request.args.get('search') or request.args.get('filter_item') %}
+            <div class="col-12">
+                <div class="alert alert-info d-flex justify-content-between align-items-center">
+                    <span>当前正在使用筛选条件</span>
+                    <a href="{{ url_for('admin.equipment') }}" class="btn btn-secondary">
+                        <i class="bi bi-x-circle"></i> 清除筛选
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
+<!-- 物资列表 -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="card-title">物资列表</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>区域编码</th>
+                        <th>区域名称</th>
+                        <th>物品名称</th>
+                        <th>规格型号</th>
+                        <th>数量</th>
+                        <th>生产厂家</th>
+                        <th>备注</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for equipment in equipments %}
+                    <tr>
+                        <td>{{ equipment.id }}</td>
+                        <td>{{ equipment.area_code }}</td>
+                        <td>{{ equipment.area_name }}</td>
+                        <td>{{ equipment.item_name }}</td>
+                        <td>{{ equipment.model }}</td>
+                        <td>{{ equipment.quantity }}</td>
+                        <td>{{ equipment.manufacturer }}</td>
+                        <td>{{ equipment.remark }}</td>
+                        <td>
+                            <!-- ...existing code... -->
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // 在页面加载完成后初始化
+    document.addEventListener('DOMContentLoaded', function() {
+        // 监听模态框关闭事件,用于清空表单
+        const addModal = document.getElementById('addEquipmentModal');
+        addModal.addEventListener('hidden.bs.modal', function() {
+            const form = this.querySelector('form');
+            if(form) form.reset();
+        });
+
+        // 检查是否有任何筛选条件
+        function hasFilters() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.has('search') || 
+                   urlParams.has('filter_category') || 
+                   urlParams.has('filter_status');
+        }
+        
+        // 检查是否有高级筛选条件 - 注意，这里不检查search参数
+        const hasAdvancedFilters = () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.has('filter_category') || urlParams.has('filter_status');
+        };
+
+        // 获取高级筛选区域元素
+        const advancedFilters = document.getElementById('advancedFilters');
+        
+        // 如果有高级筛选条件，显示高级筛选区域，否则确保折叠
+        if (hasAdvancedFilters()) {
+            advancedFilters.classList.add('show');
+        } else {
+            advancedFilters.classList.remove('show');
+        }
+        
+        // 添加表单提交事件监听器，确保在仅有search参数时高级筛选保持折叠
+        document.getElementById('filterForm').addEventListener('submit', function(event) {
+            // 检查是否有高级筛选参数
+            const formData = new FormData(this);
+            if (!formData.get('filter_category') && !formData.get('filter_status')) {
+                advancedFilters.classList.remove('show');
+            }
+        });
+
+        // 确保模态框正确初始化
+        const modalElement = document.getElementById('addEquipmentModal');
+        
+        // 检查模态框存在
+        if (modalElement) {
+            // 添加模态框事件监听器，确保关闭后表单重置
+            modalElement.addEventListener('hidden.bs.modal', function() {
+                const form = this.querySelector('form');
+                if (form) form.reset();
+            });
+            
+            // 获取触发按钮
+            const triggerButton = document.querySelector('[data-bs-target="#addEquipmentModal"]');
+            if (triggerButton) {
+                // 添加点击事件，确保模态框可以打开
+                triggerButton.addEventListener('click', function() {
+                    try {
+                        const modal = new bootstrap.Modal(modalElement);
+                        modal.show();
+                    } catch (error) {
+                        console.error('显示模态框时出错:', error);
+                        // 备用方案
+                        modalElement.classList.add('show');
+                        modalElement.style.display = 'block';
+                    }
+                });
+            }
+        }
+    });
+</script>
+{% endblock %}

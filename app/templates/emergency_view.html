@@ -1,0 +1,81 @@
+{% extends 'emergency_layout.html' %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mb-4">应急访问页面</h1>
+    
+    <div class="alert alert-info">
+        这是一个应急页面，用于在主页面出现问题时临时访问系统功能。
+    </div>
+    
+    <div class="card">
+        <div class="card-header">
+            系统菜单
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="list-group">
+                        <a href="{{ url_for('station.index') }}" class="list-group-item list-group-item-action">
+                            <i class="bi bi-box me-2"></i> 消防微型站物资管理
+                        </a>
+                        <a href="{{ url_for('equipment.index') }}" class="list-group-item list-group-item-action">
+                            <i class="bi bi-tools me-2"></i> 消防器材管理
+                        </a>
+                    </div>
+                </div>
+                
+                {% if current_user.role == 'admin' %}
+                <div class="col-md-6">
+                    <div class="list-group">
+                        <a href="{{ url_for('admin.expiry') }}" class="list-group-item list-group-item-action">
+                            <i class="bi bi-calendar-check me-2"></i> 有效期管理
+                        </a>
+                        <a href="{{ url_for('admin.responsible') }}" class="list-group-item list-group-item-action">
+                            <i class="bi bi-person-badge me-2"></i> 负责人管理
+                        </a>
+                        <a href="{{ url_for('admin.users') }}" class="list-group-item list-group-item-action">
+                            <i class="bi bi-people me-2"></i> 用户管理
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="card mt-4">
+        <div class="card-header">
+            最新设备记录
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>设备名称</th>
+                            <th>类型</th>
+                            <th>安装位置</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for equipment in equipments %}
+                        <tr>
+                            <td>{{ equipment.id }}</td>
+                            <td>{{ equipment.equipment_name }}</td>
+                            <td>{{ equipment.equipment_type }}</td>
+                            <td>{{ equipment.installation_location }}</td>
+                            <td>
+                                <a href="{{ url_for('equipment.edit', equipment_id=equipment.id) }}" class="btn btn-sm btn-warning">编辑</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

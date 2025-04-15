@@ -1,0 +1,27 @@
+/* Bootstrap Icons 自定义字体定义 */
+@font-face {
+  font-family: 'bootstrap-icons';
+  src: url('/static/lib/bootstrap-icons/fonts/bootstrap-icons.woff2') format('woff2'),
+       url('/static/lib/bootstrap-icons/fonts/bootstrap-icons.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+}
+
+/* 图标基础样式 */
+.bi::before {
+  display: inline-block;
+  font-family: bootstrap-icons !important;
+  font-style: normal;
+  font-weight: normal !important;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1;
+  vertical-align: -0.125em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* 如果字体加载失败，回退到CDN版本 */
+@import url('https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css');

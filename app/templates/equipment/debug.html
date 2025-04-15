@@ -1,0 +1,62 @@
+
+<!-- 在现有卡片之前添加权限调试卡片 -->
+<div class="card mb-4">
+    <div class="card-header">用户权限信息</div>
+    <div class="card-body">
+        <h5>所有权限 (共{{ all_permissions|length }}条)</h5>
+        
+        {% if all_permissions %}
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>操作类型</th>
+                        <th>区域ID</th>
+                        <th>区域名称</th>
+                        <th>可查看</th>
+                        <th>可添加</th>
+                        <th>可编辑</th>
+                        <th>可删除</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for perm in all_permissions %}
+                    <tr>
+                        <td>{{ perm.id }}</td>
+                        <td>{{ perm.operation_type }}</td>
+                        <td>{{ perm.area_id }} ({{ perm.area_id.__class__.__name__ }})</td>
+                        <td>{{ perm.area_name }}</td>
+                        <td>{{ '✓' if perm.can_view else '✗' }}</td>
+                        <td>{{ '✓' if perm.can_add else '✗' }}</td>
+                        <td>{{ '✓' if perm.can_edit else '✗' }}</td>
+                        <td>{{ '✓' if perm.can_delete else '✗' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            
+            <h5 class="mt-4">按操作类型分组</h5>
+            {% for type_name, perms in permissions_by_type.items() %}
+                <div class="card mb-2">
+                    <div class="card-header">{{ type_name }} ({{ perms|length }}条权限)</div>
+                    <div class="card-body">
+                        <ul>
+                            {% for p in perms %}
+                            <li>
+                                区域: {{ p.area_name }} (ID: {{ p.area_id }})
+                                - 权限: 
+                                {% if p.can_view %}<span class="badge bg-info">查看</span>{% endif %}
+                                {% if p.can_add %}<span class="badge bg-success">添加</span>{% endif %}
+                                {% if p.can_edit %}<span class="badge bg-warning">编辑</span>{% endif %}
+                                {% if p.can_delete %}<span class="badge bg-danger">删除</span>{% endif %}
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="alert alert-warning">用户没有任何权限</div>
+        {% endif %}
+    </div>
+</div>

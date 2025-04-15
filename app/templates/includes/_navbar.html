@@ -1,0 +1,47 @@
+<!-- 找到管理员菜单下拉列表，添加邮件日志项 -->
+
+<!-- 管理员菜单 -->
+{% if current_user.role == 'admin' %}
+<li class="nav-item dropdown">
+    <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="bi bi-gear-fill me-1"></i> 系统管理
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="adminDropdown">
+        <li><a class="dropdown-item" href="{{ url_for('admin.users') }}"><i class="bi bi-people me-2"></i>用户管理</a></li>
+        <li><a class="dropdown-item" href="{{ url_for('admin.responsible') }}"><i class="bi bi-person-badge me-2"></i>负责人管理</a></li>
+        <li><a class="dropdown-item" href="{{ url_for('admin.expiry') }}"><i class="bi bi-calendar-check me-2"></i>有效期管理</a></li>
+        <li><a class="dropdown-item" href="{{ url_for('admin.equipment') }}"><i class="bi bi-tools me-2"></i>物资管理</a></li>
+        <!-- 添加邮件日志菜单项 -->
+        <li><a class="dropdown-item" href="{{ url_for('admin.mail_logs') }}"><i class="bi bi-envelope-check me-2"></i>邮件日志</a></li>
+    </ul>
+</li>
+{% endif %}
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="{{ url_for('index') }}">
+            <i class="bi bi-shield-fill-check me-2"></i>消防安全管理系统
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav">
+                {% if current_user.is_authenticated %}
+                <li class="nav-item">
+                    <a class="nav-link {{ 'active' if request.endpoint and request.endpoint.startswith('station.') else '' }}" 
+                       href="{{ url_for('station.index') }}">
+                        <i class="bi bi-building me-1"></i>微型消防站
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ 'active' if request.endpoint and request.endpoint.startswith('equipment.') else '' }}" 
+                       href="{{ url_for('equipment.index') }}">
+                        <i class="bi bi-fire me-1"></i>灭火器和呼吸器
+                    </a>
+                </li>
+                {% if can_view_expiry_alert %}
+                <li class="nav-item">
+                    <a class="nav-link {{ 'active' if request.endpoint and request.endpoint == 'admin.expiry_alert' else '' }}" 
+                       href="{{ url_for('admin.expiry_alert') }}">

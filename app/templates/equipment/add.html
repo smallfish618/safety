@@ -1,0 +1,275 @@
+{% extends 'base.html' %}
+
+{% block title %}添加消防器材 - 消防安全管理系统{% endblock %}
+
+{% block styles %}
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+<style>
+    .form-label {
+        font-weight: bold;
+        color: #555;
+    }
+    .required-star {
+        color: red;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <h2>添加消防器材</h2>
+        </div>
+        <div class="col-md-6 text-md-end">
+            <a href="{{ url_for('equipment.index') }}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> 返回列表
+            </a>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h5 class="card-title">填写器材信息</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('equipment.add') }}" id="addEquipmentForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="row g-3">
+                    <!-- 区域编码 - 修改为只显示用户有权限的区域 -->
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="area_code" class="form-label">区域编码 <span class="required-star">*</span></label>
+                            <select class="form-select" id="area_code" name="area_code" required>
+                                <option value="">-- 请选择区域编码 --</option>
+                                {% for area in responsible_areas %}
+                                    {% set area_code_str = area.code|string %}
+                                    <!-- 管理员可以看到所有区域，普通用户只能看到有权限的区域 -->
+                                    {% if current_user.role == 'admin' or (area_code_str in user_permissions and user_permissions[area_code_str].can_add) %}
+                                    <option value="{{ area.code }}" data-area-name="{{ area.name }}">{{ area.code }}</option>
+                                    {% endif %}
+                                {% endfor %}
+                            </select>
+                            <div class="invalid-feedback">
+                                请选择区域编码
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 区域名称 -->
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="area_name" class="form-label">区域名称 <span class="required-star">*</span></label>
+                            <select class="form-select" id="area_name" name="area_name" required>
+                                <option value="">-- 请选择区域名称 --</option>
+                                {% for area in responsible_areas %}
+                                    {% set area_code_str = area.code|string %}
+                                    <!-- 同样只显示有权限的区域名称 -->
+                                    {% if current_user.role == 'admin' or (area_code_str in user_permissions and user_permissions[area_code_str].can_add) %}
+                                    <option value="{{ area.name }}" data-area-code="{{ area.code }}">{{ area.name }}</option>
+                                    {% endif %}
+                                {% endfor %}
+                            </select>
+                            <div class="invalid-feedback">
+                                请选择区域名称
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 其他表单字段保持不变 -->
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="installation_floor" class="form-label">楼层 <span class="required-star">*</span></label>
+                            <input type="text" class="form-control" id="installation_floor" name="installation_floor" required>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="installation_location" class="form-label">安装位置 <span class="required-star">*</span></label>
+                            <input type="text" class="form-control" id="installation_location" name="installation_location" required>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="equipment_name" class="form-label">器材名称 <span class="required-star">*</span></label>
+                            <input type="text" class="form-control" id="equipment_name" name="equipment_name" required>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="equipment_type" class="form-label">器材类型 <span class="required-star">*</span></label>
+                            <select class="form-select" id="equipment_type" name="equipment_type" required>
+                                <option value="">-- 请选择器材类型 --</option>
+                                {% for type in equipment_types %}
+                                <option value="{{ type }}">{{ type }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="model" class="form-label">型号规格 <span class="required-star">*</span></label>
+                            <input type="text" class="form-control" id="model" name="model" required>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="weight" class="form-label">重量 <span class="required-star">*</span></label>
+                            <input type="text" class="form-control" id="weight" name="weight" placeholder="例如: 3kg" required>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="quantity" class="form-label">数量 <span class="required-star">*</span></label>
+                            <input type="number" class="form-control" id="quantity" name="quantity" min="1" required>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="production_date" class="form-label">生产日期 <span class="required-star">*</span></label>
+                            <input type="date" class="form-control" id="production_date" name="production_date" required>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="service_life" class="form-label">使用年限 <span class="required-star">*</span></label>
+                            <input type="text" class="form-control" id="service_life" name="service_life" placeholder="例如: 5年" required>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="expiration_date" class="form-label">到期日期 <span class="required-star">*</span></label>
+                            <input type="text" class="form-control" id="expiration_date" name="expiration_date" placeholder="例如: 2027-01-01" required>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="mb-3">
+                            <label for="remark" class="form-label">备注 <span class="required-star">*</span></label>
+                            <textarea class="form-control" id="remark" name="remark" rows="3" required></textarea>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-4 text-end">
+                    <a href="{{ url_for('equipment.index') }}" class="btn btn-secondary me-2">取消</a>
+                    <button type="submit" class="btn btn-primary" id="submitBtn">
+                        <i class="bi bi-plus-circle"></i> 添加器材
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const areaCodeSelect = document.getElementById('area_code');
+    const areaNameSelect = document.getElementById('area_name');
+    
+    // 区域编码与区域名称联动
+    if (areaCodeSelect && areaNameSelect) {
+        // 区域编码变化时
+        areaCodeSelect.addEventListener('change', function() {
+            const selectedAreaCode = this.value;
+            const selectedOption = this.options[this.selectedIndex];
+            
+            // 重置区域名称选择
+            areaNameSelect.selectedIndex = 0;
+            
+            // 如果有选择区域编码
+            if (selectedAreaCode) {
+                const areaName = selectedOption.getAttribute('data-area-name');
+                
+                // 查找对应名称并选择
+                for (let i = 0; i < areaNameSelect.options.length; i++) {
+                    if (areaNameSelect.options[i].value === areaName) {
+                        areaNameSelect.selectedIndex = i;
+                        break;
+                    }
+                }
+            }
+            
+            // 移除错误标记
+            this.classList.remove('is-invalid');
+        });
+        
+        // 区域名称变化时
+        areaNameSelect.addEventListener('change', function() {
+            const selectedAreaName = this.value;
+            const selectedOption = this.options[this.selectedIndex];
+            
+            // 重置区域编码选择
+            areaCodeSelect.selectedIndex = 0;
+            
+            // 如果有选择区域名称
+            if (selectedAreaName) {
+                const areaCode = selectedOption.getAttribute('data-area-code');
+                
+                // 查找对应编码并选择
+                for (let i = 0; i < areaCodeSelect.options.length; i++) {
+                    if (areaCodeSelect.options[i].value === areaCode) {
+                        areaCodeSelect.selectedIndex = i;
+                        break;
+                    }
+                }
+            }
+            
+            // 移除错误标记
+            this.classList.remove('is-invalid');
+        });
+    }
+    
+    // 表单验证
+    const form = document.getElementById('addEquipmentForm');
+    if (form) {
+        form.addEventListener('submit', function(event) {
+            let valid = true;
+            const requiredFields = form.querySelectorAll('[required]');
+            
+            requiredFields.forEach(field => {
+                if (!field.value.trim()) {
+                    field.classList.add('is-invalid');
+                    valid = false;
+                } else {
+                    field.classList.remove('is-invalid');
+                }
+            });
+            
+            if (!valid) {
+                event.preventDefault();
+                alert('请填写所有必填项');
+            }
+        });
+    }
+    
+    // 检查是否有任何可选区域
+    function checkHasPermissionAreas() {
+        if (!areaCodeSelect) return;
+        
+        // 检查是否有编码选项(不包括第一个默认选项)
+        const hasOptions = areaCodeSelect.options.length > 1;
+        const submitBtn = document.getElementById('submitBtn');
+        
+        if (!hasOptions && submitBtn) {
+            // 无权限区域时显示提示
+            submitBtn.disabled = true;
+            
+            // 创建警告消息
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-warning mt-3';
+            alertDiv.id = 'no-permission-alert';
+            alertDiv.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-2"></i>您没有任何区域的添加权限，请联系管理员';
+            
+            // 插入到表单顶部
+            form.insertBefore(alertDiv, form.firstChild);
+        }
+    }
+    
+    // 页面加载后检查权限
+    setTimeout(checkHasPermissionAreas, 500);
+});
+</script>
+{% endblock %}

@@ -1,0 +1,210 @@
+{% extends 'base.html' %}
+
+{% block title %}编辑消防器材 - 消防安全管理系统{% endblock %}
+
+{% block styles %}
+<style>
+    .required-field::after {
+        content: " *";
+        color: red;
+        font-weight: bold;
+    }
+    
+    .form-section {
+        margin-bottom: 2rem;
+    }
+    
+    .form-section h5 {
+        border-bottom: 1px solid #dee2e6;
+        padding-bottom: 0.5rem;
+        margin-bottom: 1.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card">
+                <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">编辑消防器材</h5>
+                    <div>
+                        <a href="{{ url_for('equipment.detail', equipment_id=equipment.id) }}" class="btn btn-sm btn-info me-2">
+                            <i class="bi bi-eye"></i> 详情
+                        </a>
+                        <a href="{{ url_for('equipment.index') }}" class="btn btn-sm btn-light">
+                            <i class="bi bi-arrow-left"></i> 返回列表
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('equipment.edit', equipment_id=equipment.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        
+                        <!-- 区域信息部分 -->
+                        <div class="form-section">
+                            <h5>区域信息</h5>
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="area_code" class="form-label">区域编码</label>
+                                        <input type="number" class="form-control bg-light" id="area_code" name="area_code" value="{{ equipment.area_code }}" readonly>
+                                        <small class="text-muted">区域编码不可修改，如需调整请删除此记录后重新添加</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="area_name" class="form-label">区域名称</label>
+                                        <input type="text" class="form-control bg-light" id="area_name" name="area_name" value="{{ equipment.area_name }}" readonly>
+                                        <small class="text-muted">区域名称不可修改，如需调整请删除此记录后重新添加</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 器材信息部分 -->
+                        <div class="form-section">
+                            <h5>器材基本信息</h5>
+                            <div class="row g-3">
+                                <!-- 器材类型 - 下拉选择 -->
+                                <div class="col-md-6">
+                                    <label for="equipment_type" class="form-label required-field">器材类型</label>
+                                    <select class="form-select" id="equipment_type" name="equipment_type" required>
+                                        <option value="">-- 选择器材类型 --</option>
+                                        {% for type in equipment_types %}
+                                        <option value="{{ type }}" {% if equipment.equipment_type == type %}selected{% endif %}>{{ type }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                
+                                <!-- 器材名称 -->
+                                <div class="col-md-6">
+                                    <label for="equipment_name" class="form-label required-field">器材名称</label>
+                                    <input type="text" class="form-control" id="equipment_name" name="equipment_name" value="{{ equipment.equipment_name }}" required>
+                                </div>
+                                
+                                <!-- 品牌型号 -->
+                                <div class="col-md-6">
+                                    <label for="model" class="form-label">品牌型号</label>
+                                    <input type="text" class="form-control" id="model" name="model" value="{{ equipment.model }}">
+                                </div>
+                                
+                                <!-- 重量 -->
+                                <div class="col-md-6">
+                                    <label for="weight" class="form-label">重量</label>
+                                    <input type="text" class="form-control" id="weight" name="weight" value="{{ equipment.weight }}" placeholder="如: 5kg">
+                                </div>
+                                
+                                <!-- 数量 -->
+                                <div class="col-md-6">
+                                    <label for="quantity" class="form-label required-field">数量</label>
+                                    <input type="number" class="form-control" id="quantity" name="quantity" min="1" value="{{ equipment.quantity }}" required>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 位置信息部分 -->
+                        <div class="form-section">
+                            <h5>安装位置信息</h5>
+                            <div class="row g-3">
+                                <!-- 楼层 -->
+                                <div class="col-md-6">
+                                    <label for="installation_floor" class="form-label required-field">楼层</label>
+                                    <input type="text" class="form-control" id="installation_floor" name="installation_floor" value="{{ equipment.installation_floor }}" required placeholder="如: 1楼、2层、负1楼">
+                                </div>
+                                
+                                <!-- 安装位置 -->
+                                <div class="col-md-6">
+                                    <label for="installation_location" class="form-label required-field">安装位置</label>
+                                    <input type="text" class="form-control" id="installation_location" name="installation_location" value="{{ equipment.installation_location }}" required placeholder="如: 走廊、会议室">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 时间信息部分 -->
+                        <div class="form-section">
+                            <h5>时间与有效期信息</h5>
+                            <div class="row g-3">
+                                <!-- 生产日期 -->
+                                <div class="col-md-4">
+                                    <label for="production_date" class="form-label required-field">生产日期</label>
+                                    <input type="date" class="form-control" id="production_date" name="production_date" value="{{ equipment.production_date.strftime('%Y-%m-%d') if equipment.production_date }}" required>
+                                </div>
+                                
+                                <!-- 使用年限 -->
+                                <div class="col-md-4">
+                                    <label for="service_life" class="form-label">使用年限</label>
+                                    <input type="text" class="form-control" id="service_life" name="service_life" value="{{ equipment.service_life }}" placeholder="如: 5年">
+                                </div>
+                                
+                                <!-- 到期日期 -->
+                                <div class="col-md-4">
+                                    <label for="expiration_date" class="form-label">到期日期</label>
+                                    <input type="date" class="form-control" id="expiration_date" name="expiration_date" value="{{ equipment.expiration_date }}">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 备注信息 -->
+                        <div class="form-section">
+                            <h5>其他信息</h5>
+                            <div class="mb-3">
+                                <label for="remark" class="form-label">备注</label>
+                                <textarea class="form-control" id="remark" name="remark" rows="3">{{ equipment.remark }}</textarea>
+                            </div>
+                        </div>
+                        
+                        <!-- 提交按钮 -->
+                        <div class="d-flex justify-content-between">
+                            <button type="button" class="btn btn-secondary" onclick="window.location.href='{{ url_for('equipment.index') }}'">
+                                <i class="bi bi-x-circle"></i> 取消
+                            </button>
+                            <button type="submit" class="btn btn-warning">
+                                <i class="bi bi-save"></i> 保存修改
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 生产日期和到期日期联动
+    const productionDateInput = document.getElementById('production_date');
+    const serviceLiveInput = document.getElementById('service_life');
+    const expirationDateInput = document.getElementById('expiration_date');
+    
+    function updateExpirationDate() {
+        const prodDate = productionDateInput.value;
+        const serviceLife = serviceLiveInput.value;
+        
+        if (prodDate && serviceLife) {
+            // 尝试从使用年限中提取年数
+            const yearMatch = serviceLife.match(/(\d+)/);
+            if (yearMatch && yearMatch[1]) {
+                const years = parseInt(yearMatch[1]);
+                const productionDate = new Date(prodDate);
+                const expirationDate = new Date(productionDate);
+                expirationDate.setFullYear(expirationDate.getFullYear() + years);
+                
+                // 设置到期日期 (格式化为YYYY-MM-DD)
+                const formattedDate = expirationDate.toISOString().split('T')[0];
+                expirationDateInput.value = formattedDate;
+            }
+        }
+    }
+    
+    if (productionDateInput && serviceLiveInput && expirationDateInput) {
+        productionDateInput.addEventListener('change', updateExpirationDate);
+        serviceLiveInput.addEventListener('change', updateExpirationDate);
+        serviceLiveInput.addEventListener('input', updateExpirationDate);
+    }
+});
+</script>
+{% endblock %}

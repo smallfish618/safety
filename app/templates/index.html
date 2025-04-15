@@ -1,0 +1,110 @@
+{% extends 'base.html' %}
+
+{% block title %}首页 - 消防安全管理系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h3>欢迎使用消防安全管理系统</h3>
+                </div>
+                <div class="card-body">
+                    {% if error %}
+                    <div class="alert alert-danger">
+                        <h4>发生错误</h4>
+                        <p>{{ error }}</p>
+                    </div>
+                    {% else %}
+                    <p>通过左侧导航栏可以访问系统各个功能模块：</p>
+                    <ul>
+                        <li>微型消防站物资信息管理</li>
+                        {% if current_user.is_authenticated and current_user.role == 'admin' %}
+                        <li>用户及权限管理</li>
+                        <li>物资设备有效期信息</li>
+                        <li>物资负责人信息</li>
+                        {% endif %}
+                    </ul>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+<!-- 搜索筛选区域 -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="card-title">搜索筛选</h5>
+    </div>
+    <div class="card-body">
+        <form method="get" action="{{ url_for('station.index') }}" class="row g-3" id="filterForm">
+            <!-- 全局搜索框 -->
+            <div class="col-md-4">
+                <div class="input-group">
+                    <input type="text" class="form-control" placeholder="搜索任意字段..." 
+                           name="search" value="{{ request.args.get('search', '') }}">
+                    <button class="btn btn-primary" type="submit">
+                        <i class="bi bi-search"></i> 搜索
+                    </button>
+                </div>
+            </div>
+            
+            <!-- 区域筛选 -->
+            <div class="col-md-4">
+                <div class="input-group">
+                    <input type="text" class="form-control" placeholder="按区域筛选..."
+                           name="filter_area" value="{{ request.args.get('filter_area', '') }}">
+                    <button type="submit" class="btn btn-primary">筛选</button>
+                </div>
+            </div>
+            
+            <!-- 物资名称筛选 -->
+            <div class="col-md-4">
+                <div class="input-group">
+                    <input type="text" class="form-control" placeholder="按物资名称筛选..."
+                           name="filter_item" value="{{ request.args.get('filter_item', '') }}">
+                    <button type="submit" class="btn btn-primary">筛选</button>
+                </div>
+            </div>
+
+            <!-- 显示筛选状态和清除按钮 -->
+            {% if request.args.get('search') or request.args.get('filter_area') or request.args.get('filter_item') or request.args.get('filter_manufacturer') %}
+            <div class="col-12">
+                <div class="alert alert-info d-flex justify-content-between align-items-center">
+                    <span>当前正在使用筛选条件</span>
+                    <a href="{{ url_for('station.index') }}" class="btn btn-secondary">
+                        <i class="bi bi-x-circle"></i> 清除筛选
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
+<!-- ...existing code... -->
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 表单提交事件处理
+    document.getElementById('filterForm').addEventListener('submit', function() {
+        // 防止高级筛选区域在搜索表单提交时自动展开
+        const advancedFilters = document.getElementById('advancedFilters');
+        if (advancedFilters) {
+            // 检查是否有高级筛选条件
+            const filterForm = this;
+            const hasAdvancedFilter = filterForm.querySelector('[name="filter_area"]')?.value || 
+                                     filterForm.querySelector('[name="filter_item"]')?.value ||
+                                     filterForm.querySelector('[name="filter_manufacturer"]')?.value;
+            
+            if (!hasAdvancedFilter) {
+                // 没有高级筛选条件，确保高级筛选区域折叠
+                advancedFilters.classList.remove('show');
+            }
+        }
+    });
+});
+</script>

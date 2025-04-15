@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+
+{% block title %}验证邮箱 - 消防安全管理系统{% endblock %}
+
+{% block styles %}
+<style>
+    .verify-container {
+        max-width: 500px;
+        margin: 50px auto;
+    }
+    
+    .verify-card {
+        border-radius: 10px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    }
+    
+    .verify-header {
+        background-color: #f8f9fa;
+        padding: 20px;
+        border-top-left-radius: 10px;
+        border-top-right-radius: 10px;
+        text-align: center;
+    }
+    
+    .verify-body {
+        padding: 30px;
+    }
+    
+    .verify-footer {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-bottom-left-radius: 10px;
+        border-bottom-right-radius: 10px;
+        text-align: center;
+    }
+    
+    .verification-code {
+        letter-spacing: 8px;
+        font-size: 24px;
+        text-align: center;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container verify-container">
+    <div class="card verify-card">
+        <div class="verify-header">
+            <h2>验证邮箱</h2>
+            <p class="text-muted">请输入发送到 {{ email }} 的验证码</p>
+        </div>
+        
+        <div class="verify-body">
+            <!-- 添加CSRF令牌到表单中 -->
+            <form method="post" action="{{ url_for('auth.verify_email', email=email) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                
+                <div class="mb-4">
+                    <label for="code" class="form-label">验证码</label>
+                    <input type="text" class="form-control verification-code" id="code" name="code" required maxlength="6" autofocus>
+                </div>
+                
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-lg me-2"></i>验证
+                    </button>
+                </div>
+            </form>
+        </div>
+        
+        <div class="verify-footer">
+            <div class="text-center">
+                <p>没有收到验证码? <a href="{{ url_for('auth.register') }}">重新发送</a></p>
+                <p>返回 <a href="{{ url_for('auth.login') }}">登录页面</a></p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

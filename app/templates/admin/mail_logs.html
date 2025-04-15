@@ -1,0 +1,356 @@
+{% extends 'base.html' %}
+
+{% block title %}邮件发送日志 - 消防安全管理系统{% endblock %}
+
+{% block styles %}
+{{ super() }}
+<style>
+    .status-badge {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.85rem;
+    }
+    .status-success {
+        background-color: #d4edda;
+        color: #155724;
+    }
+    .status-failed {
+        background-color: #f8d7da;
+        color: #721c24;
+    }
+    .log-detail-row {
+        display: none;
+        background-color: #f8f9fa;
+    }
+    .error-message {
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-family: monospace;
+        font-size: 0.9rem;
+        color: #721c24;
+        background-color: #f8d7da;
+        padding: 10px;
+        border-radius: 4px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2 class="mb-4">
+        <i class="bi bi-envelope me-2"></i> 邮件发送日志
+    </h2>
+    
+    <!-- 统计卡片 -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">总邮件数</h5>
+                    <h2 class="mb-0">{{ total_count }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body bg-success text-white">
+                    <h5 class="card-title">发送成功</h5>
+                    <h2 class="mb-0">{{ success_count }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body bg-danger text-white">
+                    <h5 class="card-title">发送失败</h5>
+                    <h2 class="mb-0">{{ failed_count }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 图表和筛选器 -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">近7天发送统计</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="mailStatsChart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">搜索筛选</h5>
+                </div>
+                <div class="card-body">
+                    <form method="get" action="{{ url_for('admin.mail_logs') }}">
+                        <div class="mb-3">
+                            <label for="search" class="form-label">搜索</label>
+                            <input type="text" class="form-control" id="search" name="search" 
+                                   value="{{ search }}" placeholder="收件人/姓名/主题/用户名">
+                        </div>
+                        <div class="mb-3">
+                            <label for="status" class="form-label">发送状态</label>
+                            <select class="form-select" id="status" name="status">
+                                <option value="">全部</option>
+                                <option value="success" {% if filter_status == 'success' %}selected{% endif %}>成功</option>
+                                <option value="failed" {% if filter_status == 'failed' %}selected{% endif %}>失败</option>
+                            </select>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="filterStartDate" class="form-label">开始日期</label>
+                                <input type="date" class="form-control" id="filterStartDate" name="start_date" value="{{ filter_start_date }}">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="filterEndDate" class="form-label">结束日期</label>
+                                <input type="date" class="form-control" id="filterEndDate" name="end_date" value="{{ filter_end_date }}">
+                            </div>
+                        </div>
+                        <div class="text-center">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-search me-1"></i> 搜索
+                            </button>
+                            <a href="{{ url_for('admin.mail_logs') }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-repeat me-1"></i> 重置
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 日志列表 -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0">邮件日志列表</h5>
+            <div>
+                <a href="{{ url_for('admin.mail_logs', _external=True) }}" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-arrow-repeat me-1"></i> 刷新
+                </a>
+            </div>
+        </div>
+        <div class="card-body">
+            {% if logs %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th width="5%"></th>
+                                <th width="15%">发送时间</th>
+                                <th width="15%">收件人</th>
+                                <th width="25%">主题</th>
+                                <th width="10%">预警物品</th>
+                                <th width="10%">状态</th>
+                                <th width="10%">操作用户</th>
+                                <th width="10%">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in logs %}
+                                <tr data-log-id="{{ log.id }}">
+                                    <td class="text-center">
+                                        <button class="btn btn-sm btn-link toggle-details" data-log-id="{{ log.id }}">
+                                            <i class="bi bi-chevron-down"></i>
+                                        </button>
+                                    </td>
+                                    <td>{{ log.send_time.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                                    <td>
+                                        {{ log.recipient_name }}<br>
+                                        <small class="text-muted">{{ log.recipient }}</small>
+                                    </td>
+                                    <td>{{ log.subject }}</td>
+                                    <td class="text-center">{{ log.items_count }}</td>
+                                    <td>
+                                        {% if log.status == 'success' %}
+                                            <span class="status-badge status-success">成功</span>
+                                        {% else %}
+                                            <span class="status-badge status-failed">失败</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ log.username }}</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-info toggle-details" data-log-id="{{ log.id }}">
+                                            <i class="bi bi-info-circle me-1"></i>详情
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr class="log-detail-row" id="details-{{ log.id }}">
+                                    <td colspan="8" class="p-3">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <h6>发送详情</h6>
+                                                <table class="table table-sm">
+                                                    <tr>
+                                                        <th width="30%">发件人:</th>
+                                                        <td>{{ log.sender }}</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <th>收件人:</th>
+                                                        <td>{{ log.recipient_name }} &lt;{{ log.recipient }}&gt;</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <th>发送内容:</th>
+                                                        <td>{{ log.content_summary }}</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <th>IP地址:</th>
+                                                        <td>{{ log.ip_address }}</td>
+                                                    </tr>
+                                                </table>
+                                            </div>
+                                            <div class="col-md-6">
+                                                {% if log.status == 'failed' and log.error_message %}
+                                                    <h6>错误信息</h6>
+                                                    <div class="error-message">{{ log.error_message }}</div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- 分页 -->
+                {% if pagination.pages > 1 %}
+                    <nav aria-label="Page navigation">
+                        <ul class="pagination justify-content-center mt-4">
+                            {% if pagination.has_prev %}
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('admin.mail_logs', page=pagination.prev_num, search=search, status=filter_status, date=filter_date) }}">
+                                        &laquo; 上一页
+                                    </a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">&laquo; 上一页</span>
+                                </li>
+                            {% endif %}
+                            
+                            {% set start_page = [pagination.page-2, 1]|max %}
+                            {% set end_page = [start_page+4, pagination.pages]|min %}
+                            {% set start_page = [end_page-4, 1]|max %}
+                            
+                            {% for page_num in range(start_page, end_page+1) %}
+                                <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
+                                    <a class="page-link" href="{{ url_for('admin.mail_logs', page=page_num, search=search, status=filter_status, date=filter_date) }}">
+                                        {{ page_num }}
+                                    </a>
+                                </li>
+                            {% endfor %}
+                            
+                            {% if pagination.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('admin.mail_logs', page=pagination.next_num, search=search, status=filter_status, date=filter_date) }}">
+                                        下一页 &raquo;
+                                    </a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">下一页 &raquo;</span>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                {% endif %}
+            {% else %}
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle me-2"></i> 暂无邮件发送记录
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.0/dist/chart.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 详情展开/收起功能
+    document.querySelectorAll('.toggle-details').forEach(button => {
+        button.addEventListener('click', function() {
+            const logId = this.getAttribute('data-log-id');
+            const detailRow = document.getElementById(`details-${logId}`);
+            
+            if (detailRow.style.display === 'table-row') {
+                detailRow.style.display = 'none';
+                // 更新所有与此日志相关的按钮图标
+                document.querySelectorAll(`.toggle-details[data-log-id="${logId}"] i.bi`).forEach(icon => {
+                    icon.classList.remove('bi-chevron-up');
+                    icon.classList.add('bi-chevron-down');
+                });
+            } else {
+                detailRow.style.display = 'table-row';
+                // 更新所有与此日志相关的按钮图标
+                document.querySelectorAll(`.toggle-details[data-log-id="${logId}"] i.bi`).forEach(icon => {
+                    icon.classList.remove('bi-chevron-down');
+                    icon.classList.add('bi-chevron-up');
+                });
+            }
+        });
+    });
+    
+    // 初始化图表
+    const ctx = document.getElementById('mailStatsChart').getContext('2d');
+    const mailStatsChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: {{ dates|tojson }},
+            datasets: [
+                {
+                    label: '成功',
+                    data: {{ daily_success|tojson }},
+                    backgroundColor: 'rgba(40, 167, 69, 0.5)',
+                    borderColor: 'rgba(40, 167, 69, 1)',
+                    borderWidth: 1
+                },
+                {
+                    label: '失败',
+                    data: {{ daily_failed|tojson }},
+                    backgroundColor: 'rgba(220, 53, 69, 0.5)',
+                    borderColor: 'rgba(220, 53, 69, 1)',
+                    borderWidth: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: '最近7天邮件发送情况'
+                },
+                legend: {
+                    position: 'top'
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false
+                }
+            },
+            scales: {
+                x: {
+                    stacked: true
+                },
+                y: {
+                    stacked: true,
+                    beginAtZero: true,
+                    ticks: {
+                        precision: 0
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

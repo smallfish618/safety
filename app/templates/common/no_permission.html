@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+
+{% block title %}权限不足 - 消防安全管理系统{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-warning text-dark">
+                    <h4 class="mb-0"><i class="bi bi-exclamation-triangle me-2"></i>权限不足</h4>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning mb-4">
+                        <p class="mb-0">很抱歉，您没有访问<strong>"{{ module }}"</strong>的权限。</p>
+                    </div>
+                    
+                    <div class="mt-4 mb-4">
+                        <h5><i class="bi bi-key me-2"></i>您当前的权限状态：</h5>
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <div class="card mb-3 h-100">
+                                    <div class="card-header {% if station_count > 0 %}bg-success text-white{% else %}bg-secondary text-white{% endif %}">
+                                        <i class="bi bi-box me-2"></i>微型消防站
+                                    </div>
+                                    <div class="card-body">
+                                        {% if station_count > 0 %}
+                                            <p class="text-success">您拥有微型站物资的查看权限</p>
+                                            <a href="{{ url_for('station.index') }}" class="btn btn-sm btn-outline-success">查看物资</a>
+                                        {% else %}
+                                            <p class="text-muted">您没有微型站物资的任何区域权限</p>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card mb-3 h-100">
+                                    <div class="card-header {% if equipment_count > 0 %}bg-success text-white{% else %}bg-secondary text-white{% endif %}">
+                                        <i class="bi bi-fire me-2"></i>消防器材
+                                    </div>
+                                    <div class="card-body">
+                                        {% if equipment_count > 0 %}
+                                            <p class="text-success">您拥有消防器材的查看权限</p>
+                                            <a href="{{ url_for('equipment.index') }}" class="btn btn-sm btn-outline-success">查看器材</a>
+                                        {% else %}
+                                            <p class="text-muted">您没有消防器材的任何区域权限</p>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <h5 class="alert-heading"><i class="bi bi-lightbulb me-2"></i>建议操作：</h5>
+                        <p>{{ suggestion }}</p>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('index') }}" class="btn btn-primary">
+                            <i class="bi bi-house me-1"></i>返回首页
+                        </a>
+                        <a href="{{ url_for('auth.my_account') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-person-circle me-1"></i>查看个人信息
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

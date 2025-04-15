@@ -1,0 +1,255 @@
+{% extends 'base.html' %}
+
+{% block title %}负责人分析 - 消防安全管理系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2 class="mb-4">
+        <i class="bi bi-person-badge me-2"></i> 负责人物资分析
+        <a href="{{ url_for('analytics.index') }}" class="btn btn-sm btn-outline-secondary float-end">
+            <i class="bi bi-arrow-left me-1"></i> 返回分析概览
+        </a>
+    </h2>
+    
+    {% if error %}
+    <div class="alert alert-danger">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i> 错误: {{ error }}
+    </div>
+    {% else %}
+    
+    <!-- 统计卡片 -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white mb-3">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title">负责人数量</h6>
+                            <h3 class="mb-0">{{ responsible_stats|length }}</h3>
+                        </div>
+                        <i class="bi bi-people fs-1 opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card bg-success text-white mb-3">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title">管理物资总数</h6>
+                            <h3 class="mb-0">{{ responsible_stats|sum(attribute='total_count') }}</h3>
+                        </div>
+                        <i class="bi bi-box-seam fs-1 opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card bg-danger text-white mb-3">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title">已过期物资</h6>
+                            <h3 class="mb-0">{{ responsible_stats|sum(attribute='expired_count') }}</h3>
+                        </div>
+                        <i class="bi bi-exclamation-triangle fs-1 opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card bg-warning text-dark mb-3">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title">即将到期物资</h6>
+                            <h3 class="mb-0">{{ responsible_stats|sum(attribute='expiring_soon_count') }}</h3>
+                        </div>
+                        <i class="bi bi-clock-history fs-1 opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 图表区域 -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">负责人物资分布 (前10位)</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="responsibleItemsChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">负责人到期物资分布 (前10位)</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="responsibleExpiryChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 负责人详细数据表格 -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0">负责人数据详情</h5>
+            <div>
+                <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#responsibleTableCollapse">
+                    <i class="bi bi-arrows-expand"></i> 展开/收起
+                </button>
+            </div>
+        </div>
+        <div class="collapse show" id="responsibleTableCollapse">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>负责人</th>
+                                <th>区域</th>
+                                <th>联系方式</th>
+                                <th class="text-center">微型站物资</th>
+                                <th class="text-center">消防器材</th>
+                                <th class="text-center">物资总数</th>
+                                <th class="text-center">已过期</th>
+                                <th class="text-center">即将到期</th>
+                                <th class="text-center">到期状况</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for responsible in responsible_stats %}
+                            <tr>
+                                <td>{{ responsible.name }}</td>
+                                <td>{{ responsible.area_name }}</td>
+                                <td>{{ responsible.contact }}</td>
+                                <td class="text-center">{{ responsible.station_count }}</td>
+                                <td class="text-center">{{ responsible.equipment_count }}</td>
+                                <td class="text-center"><strong>{{ responsible.total_count }}</strong></td>
+                                <td class="text-center">
+                                    {% if responsible.expired_count > 0 %}
+                                    <span class="badge bg-danger">{{ responsible.expired_count }}</span>
+                                    {% else %}
+                                    <span class="text-muted">0</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    {% if responsible.expiring_soon_count > 0 %}
+                                    <span class="badge bg-warning text-dark">{{ responsible.expiring_soon_count }}</span>
+                                    {% else %}
+                                    <span class="text-muted">0</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="progress" style="height: 20px;">
+                                        {% set expired_percent = (responsible.expired_count / responsible.total_count * 100) if responsible.total_count > 0 else 0 %}
+                                        {% set expiring_percent = (responsible.expiring_soon_count / responsible.total_count * 100) if responsible.total_count > 0 else 0 %}
+                                        <div class="progress-bar bg-danger" style="width: {{ expired_percent }}%" title="已过期: {{ responsible.expired_count }}"></div>
+                                        <div class="progress-bar bg-warning" style="width: {{ expiring_percent }}%" title="即将到期: {{ responsible.expiring_soon_count }}"></div>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 负责人物资分布图表
+    const responsibleItemsCtx = document.getElementById('responsibleItemsChart').getContext('2d');
+    new Chart(responsibleItemsCtx, {
+        type: 'bar',
+        data: {
+            labels: {{ total_chart_data.labels|tojson }},
+            datasets: [
+                {
+                    label: '微型站物资',
+                    data: {{ total_chart_data.datasets[0].data|tojson }},
+                    backgroundColor: 'rgba(13, 110, 253, 0.7)',
+                    borderColor: 'rgba(13, 110, 253, 1)',
+                    borderWidth: 1
+                },
+                {
+                    label: '消防器材',
+                    data: {{ total_chart_data.datasets[1].data|tojson }},
+                    backgroundColor: 'rgba(25, 135, 84, 0.7)',
+                    borderColor: 'rgba(25, 135, 84, 1)',
+                    borderWidth: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                x: {
+                    stacked: true
+                },
+                y: {
+                    stacked: true,
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+    
+    // 负责人到期物资分布图表
+    const responsibleExpiryCtx = document.getElementById('responsibleExpiryChart').getContext('2d');
+    new Chart(responsibleExpiryCtx, {
+        type: 'bar',
+        data: {
+            labels: {{ expiry_chart_data.labels|tojson }},
+            datasets: [
+                {
+                    label: '已到期',
+                    data: {{ expiry_chart_data.datasets[0].data|tojson }},
+                    backgroundColor: 'rgba(220, 53, 69, 0.7)',
+                    borderColor: 'rgba(220, 53, 69, 1)',
+                    borderWidth: 1
+                },
+                {
+                    label: '即将到期',
+                    data: {{ expiry_chart_data.datasets[1].data|tojson }},
+                    backgroundColor: 'rgba(255, 193, 7, 0.7)',
+                    borderColor: 'rgba(255, 193, 7, 1)',
+                    borderWidth: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                x: {
+                    stacked: true
+                },
+                y: {
+                    stacked: true,
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}
