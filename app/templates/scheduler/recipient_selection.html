@@ -1,0 +1,103 @@
+<!-- 在文件开头添加默认值设置 -->
+{% set task_config = task_config|default(None) %}
+
+<!-- 这个文件将被包含在添加和编辑定时任务的模态框中 -->
+
+<div class="form-group">
+    <label class="form-label">收件人设置</label>
+    <div class="form-check">
+        <input class="form-check-input" type="radio" name="recipient_filter" id="all_recipients" value="all" 
+               {% if not task_config or task_config.recipient_filter == 'all' %}checked{% endif %}>
+        <label class="form-check-label" for="all_recipients">
+            发送给所有负责人
+        </label>
+    </div>
+    <div class="form-check">
+        <input class="form-check-input" type="radio" name="recipient_filter" id="selected_recipients" value="specific"
+               {% if task_config and task_config.recipient_filter != 'all' %}checked{% endif %}>
+        <label class="form-check-label" for="selected_recipients">
+            仅发送给选中的负责人
+        </label>
+    </div>
+    
+    <div id="recipients_container" class="mt-3" 
+         style="display: {% if task_config and task_config.recipient_filter != 'all' %}block{% else %}none{% endif %};">
+        <div class="form-check">
+            <input class="form-check-input select-all-recipients" type="checkbox" id="select-all-responsibles">
+            <label class="form-check-label" for="select-all-responsibles">
+                全选/取消全选
+            </label>
+        </div>
+        <div class="responsible-list mt-2" style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px;">
+            {% if responsible_persons %}
+                {% for person in responsible_persons %}
+                <div class="form-check">
+                    <input class="form-check-input responsible-checkbox" 
+                           type="checkbox" 
+                           name="selected_recipients" 
+                           id="responsible-{{ loop.index }}" 
+                           value="{{ person.person_name }}"
+                           {% if task_config and task_config.recipient_filter != 'all' and 
+                                 person.person_name in task_config.recipient_filter.split(',') %}checked{% endif %}>
+                    <label class="form-check-label" for="responsible-{{ loop.index }}">
+                        {{ person.person_name }} ({{ person.area_name }})
+                    </label>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="alert alert-warning">
+                    没有找到负责人信息，请先在负责人管理中添加负责人。
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+  // 当页面加载完成后初始化
+  document.addEventListener('DOMContentLoaded', function() {
+    const allRecipientsRadio = document.getElementById('all_recipients');
+    const selectedRecipientsRadio = document.getElementById('selected_recipients');
+    const recipientsContainer = document.getElementById('recipients_container');
+    const selectAllCheckbox = document.getElementById('select-all-responsibles');
+    const recipientCheckboxes = document.querySelectorAll('.responsible-checkbox');
+    
+    // 初始设置收件人选择区域的可见性
+    function updateRecipientsVisibility() {
+      if (selectedRecipientsRadio.checked) {
+        recipientsContainer.style.display = 'block';
+      } else {
+        recipientsContainer.style.display = 'none';
+      }
+    }
+    
+    // 添加单选按钮状态变化监听器
+    allRecipientsRadio.addEventListener('change', updateRecipientsVisibility);
+    selectedRecipientsRadio.addEventListener('change', updateRecipientsVisibility);
+    
+    // 全选/取消全选复选框
+    selectAllCheckbox.addEventListener('change', function() {
+      const isChecked = selectAllCheckbox.checked;
+      recipientCheckboxes.forEach(checkbox => {
+        checkbox.checked = isChecked;
+      });
+    });
+    
+    // 表单提交前的验证
+    const taskForm = document.querySelector('form');
+    if (taskForm) {
+      taskForm.addEventListener('submit', function(event) {
+        if (selectedRecipientsRadio.checked) {
+          const checkedCount = document.querySelectorAll('.responsible-checkbox:checked').length;
+          if (checkedCount === 0) {
+            event.preventDefault();
+            alert('请至少选择一个收件人，或选择"发送给所有负责人"选项');
+          }
+        }
+      });
+    }
+    
+    // 初始化时执行一次
+    updateRecipientsVisibility();
+  });
+</script>

@@ -345,6 +345,13 @@
                                 </ul>
                             </li>
                             {% endif %}
+
+                            <!-- 定时任务管理 -->
+                            <li class="nav-item">
+                                <a class="nav-link {% if request.path.startswith('/scheduler') %}active{% endif %}" href="{{ url_for('scheduler.index') }}">
+                                    <i class="bi bi-alarm"></i> 定时任务管理
+                                </a>
+                            </li>
                             
                             {% endif %}
                             

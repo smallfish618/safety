@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+
+{% block title %}调度器状态 - 消防安全管理系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2 class="mb-4">
+        <i class="bi bi-alarm me-2"></i> 调度器状态
+    </h2>
+    
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0">基本信息</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-striped">
+                        <tr>
+                            <th style="width: 40%">调度器运行状态</th>
+                            <td>
+                                {% if status.running %}
+                                <span class="badge bg-success">正在运行</span>
+                                {% else %}
+                                <span class="badge bg-danger">未运行</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>调度器时区</th>
+                            <td>{{ status.scheduler_timezone }}</td>
+                        </tr>
+                        <tr>
+                            <th>系统当前时间</th>
+                            <td>{{ status.system_time }}</td>
+                        </tr>
+                        <tr>
+                            <th>系统时区</th>
+                            <td>{{ status.system_timezone }}</td>
+                        </tr>
+                        <tr>
+                            <th>已注册任务数</th>
+                            <td>{{ status.jobs_count }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0">操作</h5>
+                </div>
+                <div class="card-body">
+                    <a href="{{ url_for('scheduler.index') }}" class="btn btn-primary me-2">
+                        <i class="bi bi-list"></i> 任务列表
+                    </a>
+                    <form action="{{ url_for('scheduler.refresh_all_tasks') }}" method="post" class="d-inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-warning me-2">
+                            <i class="bi bi-arrow-repeat"></i> 刷新所有任务
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h5 class="card-title mb-0">注册的任务</h5>
+        </div>
+        <div class="card-body">
+            {% if status.jobs %}
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>任务ID</th>
+                            <th>函数</th>
+                            <th>触发器类型</th>
+                            <th>下次执行时间</th>
+                            <th>状态</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for job in status.jobs %}
+                        <tr>
+                            <td>{{ job.id }}</td>
+                            <td>{{ job.function }}</td>
+                            <td>{{ job.trigger }}</td>
+                            <td>{{ job.next_run }}</td>
+                            <td>
+                                {% if job.scheduled %}
+                                <span class="badge bg-success">已调度</span>
+                                {% else %}
+                                <span class="badge bg-warning">未调度</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle me-2"></i> 没有找到已注册的任务
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

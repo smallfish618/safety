@@ -518,6 +518,7 @@
 {% endblock %}
 
 {% block scripts %}
+{{ super() }}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     let selectedUserId = null;
@@ -777,7 +778,21 @@ document.addEventListener('DOMContentLoaded', function() {
     // 编辑用户按钮点击事件
     document.querySelectorAll('.edit-user-btn').forEach(function(btn) {
         btn.addEventListener('click', function() {
+            // 从按钮的data-user-id属性中获取用户ID
             const userId = this.getAttribute('data-user-id');
+            console.log("编辑用户, ID:", userId);
+            
+            // 查找编辑表单并修改其action
+            const editForm = document.getElementById('editUserForm');
+            if (editForm) {
+                // 构建完整的URL，确保ID被正确替换
+                const baseAction = '/admin/edit_user/';
+                editForm.action = baseAction + userId;
+                console.log("表单action已更新为:", editForm.action);
+            } else {
+                console.error("无法找到编辑用户表单");
+            }
+            
             const username = this.getAttribute('data-username');
             const email = this.getAttribute('data-email');
             const role = this.getAttribute('data-role');
@@ -788,10 +803,6 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('edit_email').value = email;
             document.getElementById('edit_role').value = role;
             document.getElementById('edit_is_active').checked = isActive;
-            
-            // 设置表单action
-            const form = document.getElementById('editUserForm');
-            form.action = form.action.replace('0', userId);
         });
     });
     
@@ -1039,5 +1050,8 @@ document.addEventListener('DOMContentLoaded', function() {
         setupEditPermissionButtons();
     };
 });
+
+// 移除之前添加的模态框监听器，避免冲突
+// $('#editUserModal').on('show.bs.modal', function(event) { ... });
 </script>
 {% endblock %}

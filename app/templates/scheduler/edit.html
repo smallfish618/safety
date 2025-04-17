@@ -1,0 +1,23 @@
+
+<!-- 在负责人选择部分确保已选择的负责人被勾选 -->
+<div class="responsible-list mt-2" style="max-height: 200px; overflow-y: auto;">
+    {% if responsible_persons %}
+        {% for person in responsible_persons %}
+        <div class="form-check">
+            <input class="form-check-input responsible-checkbox" 
+                   type="checkbox" 
+                   name="selected_recipients" 
+                   id="responsible-{{ person.id }}" 
+                   value="{{ person.person_name }}"
+                   {% if selected_responsibles and person.person_name in selected_responsibles %}checked{% endif %}>
+            <label class="form-check-label" for="responsible-{{ person.id }}">
+                {{ person.person_name }} ({{ person.area_name }})
+            </label>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="alert alert-warning">
+            没有找到负责人信息，请先在负责人管理中添加负责人。
+        </div>
+    {% endif %}
+</div>

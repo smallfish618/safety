@@ -1,14 +1,14 @@
-from flask import Flask, redirect, url_for, request, jsonify
+from flask import Flask, redirect, url_for, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, current_user
-from flask_wtf.csrf import CSRFProtect, generate_csrf, CSRFError, CSRFError  # 添加 CSRFError 导入
+from flask_wtf.csrf import CSRFProtect, generate_csrf
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # 添加项目根目录到Python路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import Config, ProductionConfig, DevelopmentConfig
+from config import Config
 
 # 初始化扩展
 db = SQLAlchemy()
@@ -27,29 +27,25 @@ def create_app(config_class=Config):
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data/database.db')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     
-    # 确保WTF CSRF保护已启用，并添加调试信息
+    # 确保WTF CSRF保护已启用
     app.config['WTF_CSRF_ENABLED'] = True
     app.config['WTF_CSRF_SECRET_KEY'] = app.config['SECRET_KEY']
-    app.logger.info("CSRF保护已启用")
     
+    # 配置邮箱
+    app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER')
+    app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
+    app.config['MAIL_USE_SSL'] = True
+    app.config['MAIL_USE_TLS'] = False
+    app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
+    app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
+
+    # 在create_app函数内修改会话配置
+    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=12)  # 延长会话时间
+
     # 注册扩展
     db.init_app(app)
     login_manager.init_app(app)
     csrf.init_app(app)
-    
-    # 使用标准的 Flask 错误处理器代替 csrf.error_handler
-    @app.errorhandler(CSRFError)
-    def handle_csrf_error(e):
-        app.logger.error(f"CSRF错误: {e.description}")
-        return jsonify({"error": f"CSRF验证失败: {e.description}"}), 400
-    
-    @app.after_request
-    def add_csrf_cookie(response):
-        """确保CSRF令牌在cookie中也可用"""
-        if 'text/html' in response.content_type:
-            csrf_token = generate_csrf()
-            response.set_cookie('csrf_token', csrf_token, httponly=False)
-        return response
     
     @app.after_request
     def add_header(response):
@@ -146,6 +142,11 @@ def create_app(config_class=Config):
         
         return {'can_view_expiry_alert': can_view_expiry_alert}
 
+    # 添加调度器
+    print("\n开始初始化定时任务调度器...")
+    from app.scheduler import scheduler, init_scheduler
+    init_scheduler(app)
+
     # 注册URL转换器
     try:
         from app.urls import register_converters
@@ -166,13 +167,17 @@ def create_app(config_class=Config):
     from app.routes.equipment import equipment_bp
     app.register_blueprint(equipment_bp, url_prefix='/equipment')
     
+    # 注册通用蓝图
+    from app.routes.common import common_bp
+    app.register_blueprint(common_bp, url_prefix='/common')
+    
     # 注册分析蓝图
     from app.routes.analytics import analytics_bp
     app.register_blueprint(analytics_bp, url_prefix='/analytics')
     
-    # 注册通用蓝图
-    from app.routes.common import common_bp
-    app.register_blueprint(common_bp, url_prefix='/common')
+    # 在注册蓝图部分添加以下代码
+    from app.routes.scheduler import scheduler_bp
+    app.register_blueprint(scheduler_bp, url_prefix='/scheduler')
     
     # 注册错误处理器
     from app.error_handlers import register_error_handlers
@@ -214,37 +219,6 @@ def create_app(config_class=Config):
     @app.route('/index')
     def redirect_index():
         return redirect(url_for('index'))
-    
-    # 添加日志记录功能
-    if not app.debug:
-        import logging
-        from logging.handlers import RotatingFileHandler
-        
-        # 确保日志目录存在
-        if not os.path.exists('logs'):
-            os.mkdir('logs')
-            
-        # 创建日志处理器
-        file_handler = RotatingFileHandler('logs/safety.log', maxBytes=10240, backupCount=10)
-        file_handler.setFormatter(logging.Formatter(
-            '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
-        ))
-        file_handler.setLevel(logging.INFO)
-        
-        # 将处理器添加到应用
-        app.logger.addHandler(file_handler)
-        app.logger.setLevel(logging.INFO)
-        app.logger.info('安全管理系统启动')
-    
-    # 使用配置类中的设置
-    app.logger.info('======= 邮箱配置 =======')
-    app.logger.info(f'MAIL_SERVER: {app.config.get("MAIL_SERVER")}')
-    app.logger.info(f'MAIL_PORT: {app.config.get("MAIL_PORT")}')
-    app.logger.info(f'MAIL_USE_TLS: {app.config.get("MAIL_USE_TLS")}')
-    app.logger.info(f'MAIL_USE_SSL: {app.config.get("MAIL_USE_SSL")}')
-    app.logger.info(f'MAIL_USERNAME: {app.config.get("MAIL_USERNAME")}')
-    app.logger.info(f'MAIL_DEFAULT_SENDER: {app.config.get("MAIL_DEFAULT_SENDER")}')
-    app.logger.info('=======================')
     
     return app
 

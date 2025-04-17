@@ -1,0 +1,540 @@
+{% extends 'base.html' %}
+
+{% block title %}定时任务管理 - 消防安全管理系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2 class="mb-4">
+        <i class="bi bi-alarm me-2"></i> 定时任务管理
+    </h2>
+    
+    {% if error %}
+    <div class="alert alert-danger">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i> 错误: {{ error }}
+    </div>
+    {% endif %}
+    
+    <!-- 添加任务卡片 -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0">添加新定时任务</h5>
+            <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#addTaskCollapse">
+                <i class="bi bi-plus-circle me-1"></i> 展开/收起
+            </button>
+        </div>
+        <div class="collapse" id="addTaskCollapse">
+            <div class="card-body">
+                <form method="post" action="{{ url_for('scheduler.add_config') }}" id="addTaskForm">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="name" class="form-label">任务名称 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="name" name="name" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="frequency_type" class="form-label">频率类型 <span class="text-danger">*</span></label>
+                            <select class="form-select" id="frequency_type" name="frequency_type" required onchange="toggleFrequencyOptions(this.value)">
+                                <option value="daily">每天</option>
+                                <option value="weekly">每周</option>
+                                <option value="monthly">每月</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label for="execution_time" class="form-label">执行时间 <span class="text-danger">*</span></label>
+                            <input type="time" class="form-control" id="execution_time" name="execution_time" value="09:00" required>
+                        </div>
+                        <div class="col-md-4 frequency-option weekly-option" style="display: none;">
+                            <label for="day_of_week" class="form-label">星期几执行 <span class="text-danger">*</span></label>
+                            <select class="form-select" id="day_of_week" name="day_of_week">
+                                <option value="mon">星期一</option>
+                                <option value="tue">星期二</option>
+                                <option value="wed">星期三</option>
+                                <option value="thu">星期四</option>
+                                <option value="fri">星期五</option>
+                                <option value="sat">星期六</option>
+                                <option value="sun">星期日</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 frequency-option monthly-option" style="display: none;">
+                            <label for="day_of_month" class="form-label">每月日期 <span class="text-danger">*</span></label>
+                            <select class="form-select" id="day_of_month" name="day_of_month">
+                                {% for i in range(1, 32) %}
+                                <option value="{{ i }}">{{ i }}日</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">预警级别 <span class="text-danger">*</span></label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="expired" name="warning_levels" value="expired" checked>
+                                <label class="form-check-label" for="expired">已过期</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="within_30" name="warning_levels" value="within_30" checked>
+                                <label class="form-check-label" for="within_30">30天内到期</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="within_60" name="warning_levels" value="within_60" checked>
+                                <label class="form-check-label" for="within_60">60天内到期</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="within_90" name="warning_levels" value="within_90" checked>
+                                <label class="form-check-label" for="within_90">90天内到期</label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">收件人设置</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="recipient_filter" id="all_recipients" value="all" checked>
+                                <label class="form-check-label" for="all_recipients">
+                                    发送给所有负责人
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="recipient_filter" id="selected_recipients" value="specific">
+                                <label class="form-check-label" for="selected_recipients">
+                                    仅发送给选中的负责人
+                                </label>
+                            </div>
+                            
+                            <div id="recipients_container" style="display: none;" class="mt-3">
+                                <div class="form-check">
+                                    <input class="form-check-input select-all-recipients" type="checkbox" id="select-all-responsibles">
+                                    <label class="form-check-label" for="select-all-responsibles">
+                                        全选/取消全选
+                                    </label>
+                                </div>
+                                <div class="responsible-list mt-2" style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px;">
+                                    {% if responsible_persons %}
+                                        {% for person in responsible_persons %}
+                                        <div class="form-check">
+                                            <input class="form-check-input responsible-checkbox" 
+                                                   type="checkbox" 
+                                                   name="selected_recipients" 
+                                                   id="responsible-{{ person.id }}" 
+                                                   value="{{ person.person_name }}">
+                                            <label class="form-check-label" for="responsible-{{ person.id }}">
+                                                {{ person.person_name }} ({{ person.area_name }})
+                                            </label>
+                                        </div>
+                                        {% endfor %}
+                                    {% else %}
+                                        <div class="alert alert-warning">
+                                            没有找到负责人信息，请先在负责人管理中添加负责人。
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-plus-circle me-1"></i> 添加任务
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 任务列表 -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="card-title mb-0">定时任务列表</h5>
+        </div>
+        <div class="card-body">
+            {% if configs %}
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>名称</th>
+                            <th>执行频率</th>
+                            <th>预警级别</th>
+                            <th>收件人</th>
+                            <th>状态</th>
+                            <th>最后更新</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for config in configs %}
+                        <tr>
+                            <td>{{ config.name }}</td>
+                            <td>
+                                {% if config.frequency_type == 'daily' %}
+                                每天 {{ config.execution_time }}
+                                {% elif config.frequency_type == 'weekly' %}
+                                每周
+                                {% if config.day_of_week == 'mon' %}一{% endif %}
+                                {% if config.day_of_week == 'tue' %}二{% endif %}
+                                {% if config.day_of_week == 'wed' %}三{% endif %}
+                                {% if config.day_of_week == 'thu' %}四{% endif %}
+                                {% if config.day_of_week == 'fri' %}五{% endif %}
+                                {% if config.day_of_week == 'sat' %}六{% endif %}
+                                {% if config.day_of_week == 'sun' %}日{% endif %}
+                                {{ config.execution_time }}
+                                {% elif config.frequency_type == 'monthly' %}
+                                每月{{ config.day_of_month }}日 {{ config.execution_time }}
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if 'expired' in config.warning_levels %}
+                                <span class="badge bg-danger">已过期</span>
+                                {% endif %}
+                                {% if 'within_30' in config.warning_levels %}
+                                <span class="badge bg-warning">30天内</span>
+                                {% endif %}
+                                {% if 'within_60' in config.warning_levels %}
+                                <span class="badge bg-info">60天内</span>
+                                {% endif %}
+                                {% if 'within_90' in config.warning_levels %}
+                                <span class="badge bg-primary">90天内</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if config.recipient_filter == 'all' %}
+                                <span class="badge bg-secondary">所有负责人</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ config.recipient_filter }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if config.enabled %}
+                                <span class="badge bg-success">已启用</span>
+                                {% else %}
+                                <span class="badge bg-danger">已禁用</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ config.updated_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                            <td>
+                                <div class="btn-group">
+                                    <button type="button" class="btn btn-sm btn-outline-primary edit-modal-button" 
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#editModal-{{ config.id }}"
+                                            data-config-id="{{ config.id }}"
+                                            data-recipient-filter="{{ config.recipient_filter }}">
+                                        <i class="bi bi-pencil-square"></i>
+                                    </button>
+                                    <form action="{{ url_for('scheduler.toggle_config', config_id=config.id) }}" method="post" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn btn-sm {% if config.enabled %}btn-outline-warning{% else %}btn-outline-success{% endif %}">
+                                            <i class="bi {% if config.enabled %}bi-pause-fill{% else %}bi-play-fill{% endif %}"></i>
+                                        </button>
+                                    </form>
+                                    <form action="{{ url_for('scheduler.run_now', config_id=config.id) }}" method="post" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn btn-sm btn-outline-info" title="立即执行">
+                                            <i class="bi bi-lightning-fill"></i>
+                                        </button>
+                                    </form>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal-{{ config.id }}">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                                
+                                <!-- 编辑模态框 -->
+                                <div class="modal fade" id="editModal-{{ config.id }}" tabindex="-1" aria-labelledby="editModalLabel-{{ config.id }}" aria-hidden="true">
+                                    <div class="modal-dialog modal-lg">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title" id="editModalLabel-{{ config.id }}">编辑定时任务</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <form method="post" action="{{ url_for('scheduler.edit_config', config_id=config.id) }}" id="editForm-{{ config.id }}">
+                                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                    <div class="row mb-3">
+                                                        <div class="col-md-6">
+                                                            <label for="edit-name-{{ config.id }}" class="form-label">任务名称 <span class="text-danger">*</span></label>
+                                                            <input type="text" class="form-control" id="edit-name-{{ config.id }}" name="name" value="{{ config.name }}" required>
+                                                        </div>
+                                                        <div class="col-md-6">
+                                                            <label for="edit-frequency_type-{{ config.id }}" class="form-label">频率类型 <span class="text-danger">*</span></label>
+                                                            <select class="form-select" id="edit-frequency_type-{{ config.id }}" name="frequency_type" required onchange="toggleEditFrequencyOptions({{ config.id }}, this.value)">
+                                                                <option value="daily" {% if config.frequency_type == 'daily' %}selected{% endif %}>每天</option>
+                                                                <option value="weekly" {% if config.frequency_type == 'weekly' %}selected{% endif %}>每周</option>
+                                                                <option value="monthly" {% if config.frequency_type == 'monthly' %}selected{% endif %}>每月</option>
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div class="row mb-3">
+                                                        <div class="col-md-4">
+                                                            <label for="edit-execution_time-{{ config.id }}" class="form-label">执行时间 <span class="text-danger">*</span></label>
+                                                            <input type="time" class="form-control" id="edit-execution_time-{{ config.id }}" name="execution_time" value="{{ config.execution_time }}" required>
+                                                        </div>
+                                                        <div class="col-md-4 edit-frequency-option edit-weekly-option-{{ config.id }}" style="display: {% if config.frequency_type == 'weekly' %}block{% else %}none{% endif %};">
+                                                            <label for="edit-day_of_week-{{ config.id }}" class="form-label">星期几执行 <span class="text-danger">*</span></label>
+                                                            <select class="form-select" id="edit-day_of_week-{{ config.id }}" name="day_of_week">
+                                                                <option value="mon" {% if config.day_of_week == 'mon' %}selected{% endif %}>星期一</option>
+                                                                <option value="tue" {% if config.day_of_week == 'tue' %}selected{% endif %}>星期二</option>
+                                                                <option value="wed" {% if config.day_of_week == 'wed' %}selected{% endif %}>星期三</option>
+                                                                <option value="thu" {% if config.day_of_week == 'thu' %}selected{% endif %}>星期四</option>
+                                                                <option value="fri" {% if config.day_of_week == 'fri' %}selected{% endif %}>星期五</option>
+                                                                <option value="sat" {% if config.day_of_week == 'sat' %}selected{% endif %}>星期六</option>
+                                                                <option value="sun" {% if config.day_of_week == 'sun' %}selected{% endif %}>星期日</option>
+                                                            </select>
+                                                        </div>
+                                                        <div class="col-md-4 edit-frequency-option edit-monthly-option-{{ config.id }}" style="display: {% if config.frequency_type == 'monthly' %}block{% else %}none{% endif %};">
+                                                            <label for="edit-day_of_month-{{ config.id }}" class="form-label">每月日期 <span class="text-danger">*</span></label>
+                                                            <select class="form-select" id="edit-day_of_month-{{ config.id }}" name="day_of_month">
+                                                                {% for i in range(1, 32) %}
+                                                                <option value="{{ i }}" {% if config.day_of_month == i %}selected{% endif %}>{{ i }}日</option>
+                                                                {% endfor %}
+                                                            </select>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div class="row mb-3">
+                                                        <div class="col-md-6">
+                                                            <label class="form-label">预警级别 <span class="text-danger">*</span></label>
+                                                            <div class="form-check">
+                                                                <input class="form-check-input" type="checkbox" id="edit-expired-{{ config.id }}" name="warning_levels" value="expired" {% if 'expired' in config.warning_levels %}checked{% endif %}>
+                                                                <label class="form-check-label" for="edit-expired-{{ config.id }}">已过期</label>
+                                                            </div>
+                                                            <div class="form-check">
+                                                                <input class="form-check-input" type="checkbox" id="edit-within_30-{{ config.id }}" name="warning_levels" value="within_30" {% if 'within_30' in config.warning_levels %}checked{% endif %}>
+                                                                <label class="form-check-label" for="edit-within_30-{{ config.id }}">30天内到期</label>
+                                                            </div>
+                                                            <div class="form-check">
+                                                                <input class="form-check-input" type="checkbox" id="edit-within_60-{{ config.id }}" name="warning_levels" value="within_60" {% if 'within_60' in config.warning_levels %}checked{% endif %}>
+                                                                <label class="form-check-label" for="edit-within_60-{{ config.id }}">60天内到期</label>
+                                                            </div>
+                                                            <div class="form-check">
+                                                                <input class="form-check-input" type="checkbox" id="edit-within_90-{{ config.id }}" name="warning_levels" value="within_90" {% if 'within_90' in config.warning_levels %}checked{% endif %}>
+                                                                <label class="form-check-label" for="edit-within_90-{{ config.id }}">90天内到期</label>
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        <div class="col-md-6">
+                                                            <!-- 编辑任务的收件人选择 -->
+                                                            <label class="form-label">收件人设置</label>
+                                                            <div class="form-check">
+                                                                <input class="form-check-input" type="radio" name="recipient_filter" id="edit-all_recipients-{{ config.id }}" value="all" {% if config.recipient_filter == 'all' %}checked{% endif %}>
+                                                                <label class="form-check-label" for="edit-all_recipients-{{ config.id }}">
+                                                                    发送给所有负责人
+                                                                </label>
+                                                            </div>
+                                                            <div class="form-check">
+                                                                <input class="form-check-input" type="radio" name="recipient_filter" id="edit-selected_recipients-{{ config.id }}" value="specific" {% if config.recipient_filter != 'all' %}checked{% endif %}>
+                                                                <label class="form-check-label" for="edit-selected_recipients-{{ config.id }}">
+                                                                    仅发送给选中的负责人
+                                                                </label>
+                                                            </div>
+                                                            
+                                                            <div id="edit-recipients-container-{{ config.id }}" style="display: {% if config.recipient_filter != 'all' %}block{% else %}none{% endif %};" class="mt-3">
+                                                                <div class="form-check">
+                                                                    <input class="form-check-input edit-select-all-{{ config.id }}" type="checkbox" id="edit-select-all-{{ config.id }}">
+                                                                    <label class="form-check-label" for="edit-select-all-{{ config.id }}">
+                                                                        全选/取消全选
+                                                                    </label>
+                                                                </div>
+                                                                <div class="responsible-list mt-2" style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px;">
+                                                                    {% if responsible_persons %}
+                                                                        {% for person in responsible_persons %}
+                                                                        <div class="form-check">
+                                                                            <input class="form-check-input edit-responsible-checkbox-{{ config.id }}" 
+                                                                                type="checkbox" 
+                                                                                name="selected_recipients" 
+                                                                                id="edit-responsible-{{ config.id }}-{{ person.id }}" 
+                                                                                value="{{ person.person_name }}"
+                                                                                {% if config.recipient_filter != 'all' and person.person_name in config.recipient_filter %}checked{% endif %}>
+                                                                            <label class="form-check-label" for="edit-responsible-{{ config.id }}-{{ person.id }}">
+                                                                                {{ person.person_name }} ({{ person.area_name }})
+                                                                            </label>
+                                                                        </div>
+                                                                        {% endfor %}
+                                                                    {% else %}
+                                                                        <div class="alert alert-warning">
+                                                                            没有找到负责人信息，请先在负责人管理中添加负责人。
+                                                                        </div>
+                                                                    {% endif %}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                                                <button type="submit" form="editForm-{{ config.id }}" class="btn btn-primary">保存更改</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- 删除确认模态框 -->
+                                <div class="modal fade" id="deleteModal-{{ config.id }}" tabindex="-1" aria-labelledby="deleteModalLabel-{{ config.id }}" aria-hidden="true">
+                                    <div class="modal-dialog">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title" id="deleteModalLabel-{{ config.id }}">确认删除</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <p>您确定要删除任务 <strong>{{ config.name }}</strong> 吗？此操作不可撤销。</p>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                                                <form action="{{ url_for('scheduler.delete_config', config_id=config.id) }}" method="post">
+                                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                    <button type="submit" class="btn btn-danger">确认删除</button>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle me-2"></i> 暂无定时任务配置，请使用上方的表单添加新任务。
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    function toggleFrequencyOptions(frequencyType) {
+        // 隐藏所有选项
+        document.querySelectorAll('.frequency-option').forEach(element => {
+            element.style.display = 'none';
+        });
+        
+        // 显示相应选项
+        if (frequencyType === 'weekly') {
+            document.querySelectorAll('.weekly-option').forEach(element => {
+                element.style.display = 'block';
+            });
+        } else if (frequencyType === 'monthly') {
+            document.querySelectorAll('.monthly-option').forEach(element => {
+                element.style.display = 'block';
+            });
+        }
+    }
+    
+    function toggleEditFrequencyOptions(configId, frequencyType) {
+        // 隐藏所有选项
+        document.querySelectorAll(`.edit-frequency-option`).forEach(element => {
+            element.style.display = 'none';
+        });
+        
+        // 显示相应选项
+        if (frequencyType === 'weekly') {
+            document.querySelectorAll(`.edit-weekly-option-${configId}`).forEach(element => {
+                element.style.display = 'block';
+            });
+        } else if (frequencyType === 'monthly') {
+            document.querySelectorAll(`.edit-monthly-option-${configId}`).forEach(element => {
+                element.style.display = 'block';
+            });
+        }
+    }
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        // 处理收件人筛选选项
+        const recipientFilterRadios = document.querySelectorAll('input[name="recipient_filter"]');
+        const recipientsContainer = document.getElementById('recipients_container');
+        
+        recipientFilterRadios.forEach(radio => {
+            radio.addEventListener('change', function() {
+                if (this.value === 'specific') {
+                    recipientsContainer.style.display = 'block';
+                } else {
+                    recipientsContainer.style.display = 'none';
+                }
+            });
+        });
+        
+        // 全选/取消全选功能
+        const selectAllCheckbox = document.querySelector('.select-all-recipients');
+        const responsibleCheckboxes = document.querySelectorAll('.responsible-checkbox');
+        
+        if (selectAllCheckbox) {
+            selectAllCheckbox.addEventListener('change', function() {
+                responsibleCheckboxes.forEach(checkbox => {
+                    checkbox.checked = this.checked;
+                });
+            });
+        }
+        
+        // 编辑任务模态框打开时的处理逻辑
+        $('.edit-modal-button').on('click', function() {
+            const configId = $(this).data('config-id');
+            const recipientFilter = $(this).data('recipient-filter');
+            const modal = $(`#editModal-${configId}`);
+            
+            // 设置收件人选择
+            if (recipientFilter === 'all') {
+                modal.find('#edit-all_recipients-' + configId).prop('checked', true);
+                modal.find('#edit-recipients-container-' + configId).hide();
+            } else {
+                modal.find('#edit-selected_recipients-' + configId).prop('checked', true);
+                modal.find('#edit-recipients-container-' + configId).show();
+                
+                // 清除所有复选框
+                modal.find(`.edit-responsible-checkbox-${configId}`).prop('checked', false);
+                
+                // 选中指定的收件人
+                const recipients = recipientFilter.split(',');
+                recipients.forEach(recipient => {
+                    modal.find(`.edit-responsible-checkbox-${configId}[value="${recipient.trim()}"]`).prop('checked', true);
+                });
+            }
+        });
+        
+        // 为每个编辑模态框设置收件人选择功能
+        {% for config in configs %}
+        // 设置全选/取消全选功能
+        const selectAllCheckbox{{ config.id }} = document.querySelector('.edit-select-all-{{ config.id }}');
+        const responsibleCheckboxes{{ config.id }} = document.querySelectorAll('.edit-responsible-checkbox-{{ config.id }}');
+        
+        if (selectAllCheckbox{{ config.id }}) {
+            selectAllCheckbox{{ config.id }}.addEventListener('change', function() {
+                responsibleCheckboxes{{ config.id }}.forEach(checkbox => {
+                    checkbox.checked = this.checked;
+                });
+            });
+        }
+        
+        // 设置收件人筛选选项
+        const allRecipientsRadio{{ config.id }} = document.getElementById('edit-all_recipients-{{ config.id }}');
+        const selectedRecipientsRadio{{ config.id }} = document.getElementById('edit-selected_recipients-{{ config.id }}');
+        const recipientsContainer{{ config.id }} = document.getElementById('edit-recipients-container-{{ config.id }}');
+        
+        if (allRecipientsRadio{{ config.id }} && selectedRecipientsRadio{{ config.id }} && recipientsContainer{{ config.id }}) {
+            allRecipientsRadio{{ config.id }}.addEventListener('change', function() {
+                if (this.checked) {
+                    recipientsContainer{{ config.id }}.style.display = 'none';
+                }
+            });
+            
+            selectedRecipientsRadio{{ config.id }}.addEventListener('change', function() {
+                if (this.checked) {
+                    recipientsContainer{{ config.id }}.style.display = 'block';
+                }
+            });
+        }
+        {% endfor %}
+    });
+</script>
+{% endblock %}
