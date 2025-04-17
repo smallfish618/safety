@@ -30,6 +30,7 @@ venv/
 data/*.db
 data/*.sqlite
 data/*.sqlite3
+data/database.db
 
 # 日志文件
 logs/
