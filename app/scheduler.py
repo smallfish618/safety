@@ -4,7 +4,7 @@ from sqlalchemy import or_, func
 from app import db
 from app.models.station import FireStation, EquipmentExpiry, ResponsiblePerson
 from app.models.equipment import FireEquipment
-from app.models.mail_log import MailLog
+from app.models.mail_log import MailLog  # 确保在顶层导入MailLog
 from app.models.scheduler_config import SchedulerConfig
 import smtplib
 from email.mime.text import MIMEText
@@ -68,12 +68,12 @@ def init_scheduler(app):
                     id='test_scheduler',
                     func=test_scheduler_function,
                     trigger='interval',
-                    minutes=1,
+                    minutes=10,  # 从1分钟改为10分钟
                     args=[app],
                     replace_existing=True
                 )
-                print("[调度器] 已添加测试任务，每分钟执行一次")
-                app.logger.info('已添加测试任务，每分钟执行一次')
+                print("[调度器] 已添加测试任务，每10分钟执行一次")
+                app.logger.info('已添加测试任务，每10分钟执行一次')
                 
                 # 注册实际任务
                 register_scheduled_tasks(app)
@@ -182,7 +182,7 @@ def reschedule_task(app, config):
 
 # 添加测试函数，用于验证调度器是否正常工作
 def test_scheduler_function(app):
-    """调度器测试函数，每分钟执行一次"""
+    """调度器测试函数，每10分钟执行一次"""
     with app.app_context():
         current_time = datetime.now()
         app.logger.info(f'调度器测试任务执行: {current_time}')
@@ -284,6 +284,20 @@ def send_scheduled_expiry_alerts(app, config_id):
     with app.app_context():
         try:
             app.logger.info(f'开始执行定时预警邮件任务 (配置ID: {config_id})')
+            
+            # 从config.py直接加载邮件配置
+            try:
+                from config import Config
+                app.config['MAIL_SERVER'] = Config.MAIL_SERVER
+                app.config['MAIL_PORT'] = Config.MAIL_PORT
+                app.config['MAIL_USERNAME'] = Config.MAIL_USERNAME
+                app.config['MAIL_PASSWORD'] = Config.MAIL_PASSWORD
+                app.config['MAIL_USE_SSL'] = getattr(Config, 'MAIL_USE_SSL', True)
+                app.config['MAIL_USE_TLS'] = getattr(Config, 'MAIL_USE_TLS', False)
+                app.config['MAIL_DEFAULT_SENDER'] = getattr(Config, 'MAIL_DEFAULT_SENDER', ('消防安全管理系统', Config.MAIL_USERNAME))
+                app.logger.info(f"已从config.py直接加载邮件配置: SERVER={app.config['MAIL_SERVER']}, PORT={app.config['MAIL_PORT']}")
+            except Exception as e:
+                app.logger.error(f"从config.py加载邮件配置失败: {str(e)}")
             
             # 获取任务配置
             config = SchedulerConfig.query.get(config_id)
@@ -406,7 +420,9 @@ def process_expiring_items(items, expiry_rule_dict, person_dict, current_date, w
                         'expiry_date': expiry_date,
                         'days_remaining': days_remaining,
                         'type': '微型站物资' if item_type == 'station' else '消防器材',
-                        'id': item.id
+                        'id': item.id,
+                        'responsible_person': person_dict[area_code]['name'],  # 确保添加负责人信息
+                        'responsible_contact': person_dict[area_code]['email']  # 添加负责人联系方式
                     })
                 else:
                     app.logger.warning(f'区域编码 {area_code} 没有指定负责人')
@@ -422,13 +438,166 @@ def send_emails_to_responsibles(person_dict, app, config, recipient_filter=None)
     mail_password = app.config.get('MAIL_PASSWORD')
     mail_use_ssl = app.config.get('MAIL_USE_SSL', True)
     mail_use_tls = app.config.get('MAIL_USE_TLS', False)
+
+    # 验证邮箱配置是否完整，并提供详细的错误信息
+    missing_config = []
+    if not mail_server:
+        missing_config.append("MAIL_SERVER")
+    if not mail_port:
+        missing_config.append("MAIL_PORT")
+    if not mail_username:
+        missing_config.append("MAIL_USERNAME")
+    if not mail_password:
+        missing_config.append("MAIL_PASSWORD")
+    
+    if missing_config:
+        app.logger.error(f"邮件配置不完整，缺少以下项: {', '.join(missing_config)}")
+        app.logger.info(f"当前配置: SERVER={mail_server}, PORT={mail_port}, USERNAME={mail_username}, PASSWORD={'已设置' if mail_password else '未设置'}")
+        
+        # 尝试从环境变量中读取
+        import os
+        if 'MAIL_PASSWORD' in missing_config:
+            env_password = os.environ.get('MAIL_PASSWORD')
+            if env_password:
+                mail_password = env_password
+                app.logger.info("已从环境变量中读取到MAIL_PASSWORD")
+                missing_config.remove('MAIL_PASSWORD')
+        
+        # 如果仍有缺失项，则中止
+        if missing_config:
+            return 0
+    
+    # 设置默认发件人，确保不为空
+    default_sender = mail_username or "18184887@qq.com"
+    
+    # 记录完整的邮件配置用于调试
+    app.logger.info(f"邮件配置: SERVER={mail_server}, PORT={mail_port}, SSL={mail_use_ssl}, TLS={mail_use_tls}, USERNAME={mail_username}")
+    
+    # 添加当前日期和时间用于邮件标题
+    current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M')
     
     # 添加重试机制
     max_retries = 3
     
-    # 解析选中的负责人列表（修复问题的关键部分）
+    # 特殊处理管理员收件人
+    if recipient_filter == 'admin':
+        app.logger.info("收件人设置为管理员，查找所有管理员用户")
+        from app.models.user import User
+        admin_users = User.query.filter_by(role='admin').all()
+        
+        if not admin_users:
+            app.logger.warning("未找到管理员用户")
+            return 0
+            
+        app.logger.info(f"找到 {len(admin_users)} 个管理员用户")
+        
+        # 收集所有预警项目，不再按负责人筛选
+        all_items = []
+        for area_code, area_data in person_dict.items():
+            # 确保有负责人信息和联系方式
+            responsible_name = area_data.get('name', '未指定')
+            responsible_email = area_data.get('email', '无联系方式')
+            
+            if area_data.get('items'):
+                # 为每个物品添加负责人信息
+                for item in area_data['items']:
+                    item['responsible_person'] = responsible_name
+                    item['responsible_contact'] = responsible_email
+                all_items.extend(area_data['items'])
+                
+        if not all_items:
+            app.logger.info("没有任何预警物品，不发送邮件")
+            return 0
+            
+        app.logger.info(f"总共有 {len(all_items)} 个预警物品")
+        
+        # 发送给每位管理员
+        for admin in admin_users:
+            if not admin.email or '@' not in admin.email:
+                app.logger.warning(f"管理员 {admin.username} 没有有效的邮箱地址")
+                continue
+                
+            try:
+                app.logger.info(f"准备向管理员 {admin.username} ({admin.email}) 发送预警邮件")
+                
+                # 生成综合的预警邮件内容
+                email_content = generate_admin_email_content(admin.username, all_items)
+                
+                # 创建邮件对象 - 修改标题添加日期时间
+                msg = MIMEMultipart('alternative')
+                msg['Subject'] = Header(f'【重要】物资有效期综合预警通知（{current_datetime}）', 'utf-8')
+                msg['From'] = mail_username
+                msg['To'] = admin.email
+                
+                # 设置HTML内容
+                html_part = MIMEText(email_content, 'html', 'utf-8')
+                msg.attach(html_part)
+                
+                # 尝试发送邮件
+                retries = 0
+                while retries < max_retries:
+                    try:
+                        # 使用正确的SMTP类，基于SSL/TLS配置
+                        if mail_use_ssl:
+                            server = smtplib.SMTP_SSL(mail_server, mail_port, timeout=10)
+                        else:
+                            server = smtplib.SMTP(mail_server, mail_port, timeout=10)
+                            if mail_use_tls:
+                                server.starttls()
+                                
+                        # 登录SMTP服务器
+                        server.login(mail_username, mail_password)
+                        
+                        # 发送邮件
+                        server.sendmail(mail_username, [admin.email], msg.as_string())
+                        server.quit()
+                        
+                        # 记录发送成功
+                        app.logger.info(f"成功向管理员 {admin.username} 发送预警邮件")
+                        mail_count += 1
+                        
+                        # 记录发送日志
+                        mail_log = MailLog(
+                            send_time=datetime.now(),
+                            sender=mail_username,
+                            recipient=admin.email,
+                            recipient_name=f"管理员-{admin.username}",
+                            subject=f'【重要】物资有效期综合预警通知（{current_datetime}）',
+                            content_summary=f"管理员综合预警邮件 - 包含{len(all_items)}个物品",
+                            status="success",
+                            error_message=None,
+                            items_count=len(all_items)
+                        )
+                        db.session.add(mail_log)
+                        db.session.commit()
+                        
+                        break  # 发送成功，跳出重试循环
+                    except Exception as e:
+                        retries += 1
+                        app.logger.error(f"发送邮件给管理员 {admin.username} 失败 (尝试 {retries}/{max_retries}): {str(e)}")
+                        if retries >= max_retries:
+                            # 记录发送失败日志
+                            mail_log = MailLog(
+                                send_time=datetime.now(),
+                                sender=mail_username,
+                                recipient=admin.email,
+                                recipient_name=f"管理员-{admin.username}",
+                                subject=f'【重要】物资有效期综合预警通知（{current_datetime}）',
+                                content_summary=f"管理员综合预警邮件 - 包含{len(all_items)}个物品",
+                                status="failed",
+                                error_message=str(e),
+                                items_count=len(all_items)
+                            )
+                            db.session.add(mail_log)
+                            db.session.commit()
+            except Exception as e:
+                app.logger.error(f"处理管理员 {admin.username} 的邮件时出错: {str(e)}")
+                
+        return mail_count
+    
+    # 解析选中的负责人列表（原有代码）
     selected_recipients = []
-    if recipient_filter and recipient_filter != 'all':
+    if recipient_filter and recipient_filter != 'all' and recipient_filter != 'admin':
         # 将字符串转换为列表
         selected_recipients = [name.strip() for name in recipient_filter.split(',')]
         app.logger.info(f"筛选的负责人列表: {selected_recipients}")
@@ -453,102 +622,126 @@ def send_emails_to_responsibles(person_dict, app, config, recipient_filter=None)
         
         # 以下是正常的邮件发送流程...
         retries = 0
+        email_subject = f'【重要】消防安全管理系统 - 物资有效期自动预警通知（{current_datetime}）'
+        
         while retries < max_retries:
             try:
                 # 生成邮件内容
                 person_name = person_data['name']
                 email_content = generate_email_content(person_name, person_data['items'])
                 
-                # 设置邮件主题
-                email_subject = f'【重要】消防安全管理系统 - 物资有效期自动预警通知'
-                
-                # 发送邮件
-                if mail_use_ssl:
-                    server = smtplib.SMTP_SSL(mail_server, mail_port)
-                else:
-                    server = smtplib.SMTP(mail_server, mail_port)
-                    if mail_use_tls:
-                        server.starttls()
-                
-                server.login(mail_username, mail_password)
-                
-                msg = MIMEMultipart('alternative')
-                msg['Subject'] = Header(email_subject, 'utf-8')
-                msg['From'] = mail_username
-                msg['To'] = person_data['email']
-                
-                html_part = MIMEText(email_content, 'html', 'utf-8')
-                msg.attach(html_part)
-                
-                server.sendmail(mail_username, [person_data['email']], msg.as_string())
-                server.quit()
-                
-                # 记录邮件日志
-                mail_log = MailLog(
-                    send_time=datetime.now(),
-                    sender=mail_username,
-                    recipient=person_data['email'],
-                    recipient_name=person_name,
-                    subject=email_subject,
-                    content_summary=f"自动有效期预警邮件 - 包含{len(person_data['items'])}个物品",
-                    status="success",
-                    items_count=len(person_data['items']),
-                    username="系统自动发送",
-                    user_id=None  # 自动发送没有用户ID
-                )
-                db.session.add(mail_log)
-                db.session.commit()
-                
-                mail_count += 1
-                app.logger.info(f"成功向 {person_name} ({person_data['email']}) 发送预警邮件")
-                
-                # 成功发送，跳出重试循环
-                break
-                
-            except smtplib.SMTPException as e:
-                retries += 1
-                if retries >= max_retries:
-                    # 记录失败日志
-                    app.logger.error(f"向 {person_data['name']} 发送邮件时出错: {str(e)}")
+                # 每次尝试都创建新的SMTP连接
+                server = None
+                try:
+                    if mail_use_ssl:
+                        app.logger.info(f"创建SSL SMTP连接到 {mail_server}:{mail_port}")
+                        server = smtplib.SMTP_SSL(mail_server, mail_port, timeout=10)
+                    else:
+                        app.logger.info(f"创建标准SMTP连接到 {mail_server}:{mail_port}")
+                        server = smtplib.SMTP(mail_server, mail_port, timeout=10)
+                        if mail_use_tls:
+                            server.starttls()
                     
+                    # 登录SMTP服务器
+                    app.logger.info(f"使用用户 {mail_username} 登录SMTP服务器")
+                    server.login(mail_username, mail_password)
+                    
+                    # 创建邮件
+                    msg = MIMEMultipart('alternative')
+                    msg['Subject'] = Header(email_subject, 'utf-8')
+                    msg['From'] = mail_username
+                    msg['To'] = person_data['email']
+                    
+                    # 设置邮件内容
+                    html_part = MIMEText(email_content, 'html', 'utf-8')
+                    msg.attach(html_part)
+                    
+                    # 发送邮件
+                    app.logger.info(f"发送邮件到 {person_data['email']}")
+                    server.sendmail(mail_username, [person_data['email']], msg.as_string())
+                    
+                    # 关闭连接
+                    server.quit()
+                    
+                    # 记录邮件日志
                     mail_log = MailLog(
                         send_time=datetime.now(),
-                        sender=mail_username,
+                        sender=default_sender,  # 使用默认发件人，确保不为空
+                        recipient=person_data['email'],
+                        recipient_name=person_name,
+                        subject=email_subject,
+                        content_summary=f"自动有效期预警邮件 - 包含{len(person_data['items'])}个物品",
+                        status="success",
+                        items_count=len(person_data['items']),
+                        username="系统自动发送",
+                        user_id=None,  # 自动发送没有用户ID
+                        ip_address="127.0.0.1"  # 添加一个默认IP地址
+                    )
+                    db.session.add(mail_log)
+                    db.session.commit()
+                    
+                    mail_count += 1
+                    app.logger.info(f"成功向 {person_name} ({person_data['email']}) 发送预警邮件")
+                    
+                    # 成功发送，跳出重试循环
+                    break
+                    
+                except Exception as conn_error:
+                    if server:
+                        try:
+                            server.quit()
+                        except:
+                            pass
+                    
+                    retries += 1
+                    app.logger.warning(f"邮件发送失败，尝试第{retries}次重试... 错误: {str(conn_error)}")
+                    
+                    if retries >= max_retries:
+                        # 记录失败日志 - 确保sender不为None
+                        error_log = MailLog(
+                            send_time=datetime.now(),
+                            sender=default_sender,  # 使用默认发件人，确保不为空
+                            recipient=person_data['email'],
+                            recipient_name=person_data['name'],
+                            subject=email_subject,
+                            content_summary=f"自动有效期预警邮件 - 发送失败",
+                            status="failed",
+                            error_message=str(conn_error),
+                            items_count=len(person_data['items']),
+                            username="系统自动发送",
+                            user_id=None,
+                            ip_address="127.0.0.1"  # 添加一个默认IP地址
+                        )
+                        db.session.add(error_log)
+                        db.session.commit()
+                        app.logger.error(f"向 {person_data['name']} 发送邮件失败，已达最大重试次数: {str(conn_error)}")
+                    else:
+                        time.sleep(2)  # 重试前等待
+                
+            except Exception as e:
+                app.logger.error(f"向 {person_data['name']} 发送邮件时出错: {str(e)}")
+                
+                # 记录失败日志 - 确保sender不为None
+                try:
+                    mail_log = MailLog(
+                        send_time=datetime.now(),
+                        sender=default_sender,  # 使用默认发件人，确保不为空 
                         recipient=person_data['email'],
                         recipient_name=person_data['name'],
-                        subject=email_subject if 'email_subject' in locals() else "物资有效期自动预警通知",
+                        subject=email_subject,
                         content_summary=f"自动有效期预警邮件 - 发送失败",
                         status="failed",
                         error_message=str(e),
                         items_count=len(person_data['items']),
                         username="系统自动发送",
-                        user_id=None
+                        user_id=None,
+                        ip_address="127.0.0.1"  # 添加一个默认IP地址
                     )
                     db.session.add(mail_log)
                     db.session.commit()
-                else:
-                    app.logger.warning(f"邮件发送失败，尝试第{retries}次重试...")
-                    time.sleep(2)  # 重试前等待
-            
-            except Exception as e:
-                app.logger.error(f"向 {person_data['name']} 发送邮件时出错: {str(e)}")
-                
-                # 记录失败日志
-                mail_log = MailLog(
-                    send_time=datetime.now(),
-                    sender=mail_username,
-                    recipient=person_data['email'],
-                    recipient_name=person_data['name'],
-                    subject=email_subject if 'email_subject' in locals() else "物资有效期自动预警通知",
-                    content_summary=f"自动有效期预警邮件 - 发送失败",
-                    status="failed",
-                    error_message=str(e),
-                    items_count=len(person_data['items']),
-                    username="系统自动发送",
-                    user_id=None
-                )
-                db.session.add(mail_log)
-                db.session.commit()
+                except Exception as log_err:
+                    app.logger.error(f"记录失败邮件日志时出错: {str(log_err)}")
+                    db.session.rollback()
                 
                 # 一般错误不重试
                 break
@@ -618,6 +811,125 @@ def generate_email_content(responsible_person, items):
         </div>
         <p>请及时对上述物资进行更换或维护，确保消防安全。</p>
         <p>谢谢您的配合！</p>
+        <p style="margin-top: 20px; color: #6c757d; font-size: 0.9em;">
+            消防安全管理系统<br>
+            发送时间：''' + f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}' + '''<br>
+            此邮件由系统自动发送，请勿直接回复
+        </p>
+    </div>
+    '''
+    
+    return html
+
+def generate_admin_email_content(admin_name, all_items):
+    """生成管理员专用的综合预警邮件内容"""
+    # 当前日期
+    current_date = datetime.now().date()
+    
+    # 按区域和负责人分组 - 确保负责人信息正确传递
+    items_by_area = {}
+    for item in all_items:
+        area_name = item.get('area_name', '未知区域')
+        if area_name not in items_by_area:
+            items_by_area[area_name] = {
+                'responsible': item.get('responsible_person', '未指定'),
+                'contact': item.get('responsible_contact', '无联系方式'),
+                'items': []
+            }
+        items_by_area[area_name]['items'].append(item)
+    
+    # 生成HTML内容
+    html = f'''
+    <div style="font-family: Arial, sans-serif;">
+        <h2 style="color: #dc3545;">消防安全管理系统 - 物资有效期综合预警通知</h2>
+        <p>尊敬的管理员 {admin_name}：</p>
+        <p>系统检测到以下物资即将到期或已经到期，请关注：</p>
+        
+        <div style="margin-top: 20px;">
+            <h3 style="margin-bottom: 10px; border-bottom: 1px solid #dee2e6; padding-bottom: 5px;">
+                综合预警数据 - 共 {len(all_items)} 项
+            </h3>
+    '''
+    
+    # 添加预警统计
+    expired_count = sum(1 for item in all_items if item.get('days_remaining', 0) < 0)
+    days30_count = sum(1 for item in all_items if 0 <= item.get('days_remaining', 0) <= 30)
+    days60_count = sum(1 for item in all_items if 30 < item.get('days_remaining', 0) <= 60)
+    days90_count = sum(1 for item in all_items if 60 < item.get('days_remaining', 0) <= 90)
+    
+    html += f'''
+            <div style="margin-bottom: 20px; padding: 10px; background-color: #f8f9fa; border-radius: 5px;">
+                <h4 style="margin-top: 0;">预警统计：</h4>
+                <ul>
+                    <li><span style="color: #dc3545; font-weight: bold;">已过期：{expired_count}项</span></li>
+                    <li><span style="color: #ffc107; font-weight: bold;">30天内到期：{days30_count}项</span></li>
+                    <li><span style="color: #fd7e14; font-weight: bold;">60天内到期：{days60_count}项</span></li>
+                    <li><span style="color: #17a2b8; font-weight: bold;">90天内到期：{days90_count}项</span></li>
+                </ul>
+            </div>
+    '''
+    
+    # 按区域添加详细预警信息
+    for area_name, area_data in items_by_area.items():
+        # 更新区域标题，显示更详细的负责人信息
+        html += f'''
+            <div style="margin-top: 30px;">
+                <h4 style="margin-bottom: 5px; background-color: #f1f1f1; padding: 5px 10px; border-radius: 5px;">
+                    区域：{area_name} | 负责人：{area_data['responsible']} | 联系方式：{area_data['contact']}
+                </h4>
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                    <thead>
+                        <tr style="background-color: #f8f9fa;">
+                            <th style="border: 1px solid #dee2e6; padding: 8px; text-align: left;">物品名称</th>
+                            <th style="border: 1px solid #dee2e6; padding: 8px; text-align: left;">型号</th>
+                            <th style="border: 1px solid #dee2e6; padding: 8px; text-align: left;">位置</th>
+                            <th style="border: 1px solid #dee2e6; padding: 8px; text-align: left;">到期日期</th>
+                            <th style="border: 1px solid #dee2e6; padding: 8px; text-align: left;">状态</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        '''
+        
+        # 添加该区域的所有物品
+        for item in area_data['items']:
+            days_remaining = item.get('days_remaining', 0)
+            
+            if days_remaining < 0:
+                status_text = "已到期"
+                status_color = "#dc3545"  # 红色
+            elif days_remaining <= 30:
+                status_text = "30天内到期"
+                status_color = "#ffc107"  # 黄色
+            elif days_remaining <= 60:
+                status_text = "60天内到期"
+                status_color = "#fd7e14"  # 橙色
+            else:
+                status_text = "90天内到期"
+                status_color = "#17a2b8"  # 青色
+            
+            html += f'''
+                <tr>
+                    <td style="border: 1px solid #dee2e6; padding: 8px;">{item.get('name', '')}</td>
+                    <td style="border: 1px solid #dee2e6; padding: 8px;">{item.get('model', '')}</td>
+                    <td style="border: 1px solid #dee2e6; padding: 8px;">{item.get('location', '')}</td>
+                    <td style="border: 1px solid #dee2e6; padding: 8px;">{item.get('expiry_date').strftime('%Y-%m-%d') if item.get('expiry_date') else ''}</td>
+                    <td style="border: 1px solid #dee2e6; padding: 8px; color: {status_color}; font-weight: bold;">
+                        {status_text}
+                    </td>
+                </tr>
+            '''
+            
+        html += '''
+                    </tbody>
+                </table>
+            </div>
+        '''
+    
+    # 完成HTML内容
+    html += '''
+        </div>
+        <p>请及时关注物资到期情况，确保消防安全。</p>
+        <p>谢谢您的关注！</p>
         <p style="margin-top: 20px; color: #6c757d; font-size: 0.9em;">
             消防安全管理系统<br>
             发送时间：''' + f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}' + '''<br>

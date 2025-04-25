@@ -67,3 +67,8 @@
     </div>
 </div>
 {% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='js/csrf_refresh.js') }}?v={{ cache_buster }}"></script>
+{% endblock %}

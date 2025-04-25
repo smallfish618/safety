@@ -494,6 +494,9 @@ def add_user():
 def toggle_user(user_id):
     """启用/禁用用户"""
     try:
+        # 记录接收到的请求
+        print(f"收到切换用户状态请求，用户ID: {user_id}")
+        
         user = User.query.get_or_404(user_id)
         
         # 防止管理员禁用自己
@@ -508,6 +511,10 @@ def toggle_user(user_id):
         flash(f'用户 {user.username} 已被{status}', 'success')
     except Exception as e:
         db.session.rollback()
+        # 添加更详细的错误记录
+        import traceback
+        traceback.print_exc()
+        print(f"切换用户状态时发生错误：{str(e)}")
         flash(f'操作用户时出错: {str(e)}', 'danger')
     return redirect(url_for('admin.users'))
 
@@ -1307,16 +1314,30 @@ def send_expiry_alert_emails():
                 'message': '没有找到有效的邮箱地址'
             })
         
+        # 导入formataddr函数用于RFC标准格式化发件人
+        from email.utils import formataddr
+        
         # 从应用配置中获取邮件配置
-        mail_server = current_app.config.get('MAIL_SERVER', 'smtp.example.com')
-        mail_port = current_app.config.get('MAIL_PORT', 465)  # 默认使用SSL端口465
-        mail_username = current_app.config.get('MAIL_USERNAME', '')
-        mail_password = current_app.config.get('MAIL_PASSWORD', '')
-        mail_use_ssl = current_app.config.get('MAIL_USE_SSL', True)  # 默认使用SSL
+        mail_server = current_app.config.get('MAIL_SERVER')
+        mail_port = current_app.config.get('MAIL_PORT')
+        mail_use_ssl = current_app.config.get('MAIL_USE_SSL', False)
         mail_use_tls = current_app.config.get('MAIL_USE_TLS', False)
-        mail_sender = mail_username  # 使用邮箱账号作为发件人
+        mail_username = current_app.config.get('MAIL_USERNAME')
+        mail_password = current_app.config.get('MAIL_PASSWORD')
+        mail_sender = current_app.config.get('MAIL_DEFAULT_SENDER', mail_username)
+        
+        # 处理元组格式的发件人，使用formataddr确保符合RFC标准
+        if isinstance(mail_sender, tuple):
+            sender_name, sender_email = mail_sender
+            formatted_sender = formataddr((sender_name, sender_email))  # 使用formataddr格式化
+            mail_sender_email = sender_email  # 用于SMTP身份验证和发件人地址
+        else:
+            # 如果不是元组，也使用formataddr处理可能的编码问题
+            formatted_sender = formataddr(('', mail_sender)) if '@' in mail_sender else mail_sender
+            mail_sender_email = mail_sender
         
         print(f"邮件服务器配置: 服务器={mail_server}, 端口={mail_port}, SSL={mail_use_ssl}, TLS={mail_use_tls}")
+        print(f"发件人格式化后: {formatted_sender}, 发件地址: {mail_sender_email}")
         
         # 检查邮箱密码是否存在
         if not mail_password:
@@ -1376,21 +1397,21 @@ def send_expiry_alert_emails():
                     # 创建每个收件人的邮件副本
                     recipient_msg = MIMEMultipart('alternative')
                     recipient_msg['Subject'] = Header(email_subject, 'utf-8')
-                    recipient_msg['From'] = mail_sender
+                    recipient_msg['From'] = formatted_sender  # 使用RFC标准格式化的发件人
                     recipient_msg['To'] = email_address
                     
                     # 设置邮件内容 - 使用个性化内容
                     personalized_html_part = MIMEText(personalized_content, 'html', 'utf-8')
                     recipient_msg.attach(personalized_html_part)
                     
-                    # 发送邮件
+                    # 发送邮件 - 使用纯邮箱地址
                     print(f"发送邮件给 {person_name} ({email_address})")
-                    server.sendmail(mail_sender, [email_address], recipient_msg.as_string())
+                    server.sendmail(mail_sender_email, [email_address], recipient_msg.as_string())
                     
-                    # 记录成功发送的邮件日志
+                    # 记录成功发送的邮件日志 - 使用格式化的发件人字符串
                     mail_log = MailLog(
                         send_time=datetime.now(),
-                        sender=mail_sender,
+                        sender=formatted_sender,  # 使用RFC标准格式化后的发件人
                         recipient=email_address,
                         recipient_name=person_name,
                         subject=email_subject,
@@ -1424,7 +1445,7 @@ def send_expiry_alert_emails():
                     # 记录发送失败的邮件日志
                     mail_log = MailLog(
                         send_time=datetime.now(),
-                        sender=mail_sender,
+                        sender=formatted_sender,  # 使用RFC标准格式化后的发件人
                         recipient=email_address,
                         recipient_name=person_name,
                         subject=email_subject,
@@ -1447,7 +1468,7 @@ def send_expiry_alert_emails():
                     # 记录发送失败的邮件日志
                     mail_log = MailLog(
                         send_time=datetime.now(),
-                        sender=mail_sender,
+                        sender=formatted_sender,  # 使用RFC标准格式化后的发件人
                         recipient=email_address,
                         recipient_name=person_name,
                         subject=email_subject,
@@ -1470,7 +1491,7 @@ def send_expiry_alert_emails():
                     # 记录发送失败的邮件日志
                     mail_log = MailLog(
                         send_time=datetime.now(),
-                        sender=mail_sender,
+                        sender=formatted_sender,  # 使用RFC标准格式化后的发件人
                         recipient=email_address,
                         recipient_name=person_name,
                         subject=email_subject,
@@ -1493,7 +1514,7 @@ def send_expiry_alert_emails():
                 try:
                     mail_log = MailLog(
                         send_time=datetime.now(),
-                        sender=mail_sender,
+                        sender=formatted_sender,  # 使用RFC标准格式化后的发件人
                         recipient=email_address,
                         recipient_name=person_name,
                         subject=email_subject,
@@ -1509,6 +1530,7 @@ def send_expiry_alert_emails():
                     db.session.commit()
                 except Exception as log_error:
                     print(f"记录邮件日志时出错: {str(log_error)}")
+                    db.session.rollback()  # 添加回滚操作
         
         # 构建返回消息
         message = f'成功发送邮件给 {recipients_count} 位接收者'
@@ -1527,11 +1549,21 @@ def send_expiry_alert_emails():
         print("发送预警邮件时出错:")
         traceback.print_exc()
         
-        # 记录整体失败日志
+        # 记录整体失败日志 - 使用字符串格式的发件人
         try:
+            # 确保发件人是字符串格式
+            if 'mail_sender' in locals():
+                if isinstance(mail_sender, tuple):
+                    from email.utils import formataddr
+                    sender_str = formataddr(mail_sender)  # 使用formataddr替代字符串拼接
+                else:
+                    sender_str = mail_sender
+            else:
+                sender_str = current_app.config.get('MAIL_USERNAME', '')
+                
             mail_log = MailLog(
                 send_time=datetime.now(),
-                sender=current_app.config.get('MAIL_USERNAME', ''),
+                sender=sender_str,  # 使用RFC标准格式的发件人
                 recipient="多人发送",
                 recipient_name="批量发送",
                 subject=data.get('email_subject', '【重要】物资有效期预警通知') if 'data' in locals() else "未知",
@@ -1547,6 +1579,7 @@ def send_expiry_alert_emails():
             db.session.commit()
         except Exception as log_error:
             print(f"记录整体失败日志时出错: {str(log_error)}")
+            db.session.rollback()  # 添加回滚操作
         
         return jsonify({
             'success': False,
@@ -1963,3 +1996,28 @@ def check_expiry_data():
             'success': False,
             'error': str(e)
         }), 500
+
+# 添加到文件末尾，不修改现有代码
+@admin_bp.route('/api/check_item_name')
+@login_required
+@admin_required
+def check_item_name():
+    """检查物品名称是否已存在于有效期规则表中"""
+    try:
+        item_name = request.args.get('item_name', '')
+        rule_id = request.args.get('rule_id', type=int)
+        
+        if not item_name:
+            return jsonify({'exists': False, 'error': '物品名称不能为空'})
+        
+        # 查询条件：如果提供了rule_id，则排除此ID的记录(编辑模式)
+        query = EquipmentExpiry.query.filter(EquipmentExpiry.item_name == item_name)
+        if rule_id:
+            query = query.filter(EquipmentExpiry.id != rule_id)
+            
+        exists = query.first() is not None
+        
+        return jsonify({'exists': exists})
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'exists': False, 'error': str(e)})

@@ -1,0 +1,54 @@
+{% block scripts %}
+{{ super() }}
+<script>
+    // 初始化日期选择器
+    document.addEventListener('DOMContentLoaded', function() {
+        // 为所有日期选择器添加最大日期限制（今天）
+        const datePickers = document.querySelectorAll('.date-picker');
+        const today = new Date().toISOString().split('T')[0]; // 格式: YYYY-MM-DD
+        
+        datePickers.forEach(picker => {
+            // 限制生产日期不能超过今天
+            if (picker.id === 'production_date') {
+                picker.setAttribute('max', today);
+            }
+            
+            // 监听生产日期变化，自动计算到期日期
+            if (picker.id === 'production_date') {
+                picker.addEventListener('change', calculateExpiryDate);
+            }
+        });
+        
+        // 自动计算到期日期的函数
+        function calculateExpiryDate() {
+            const productionDateEl = document.getElementById('production_date');
+            const expiryDateEl = document.getElementById('expiry_date');
+            const equipmentTypeEl = document.getElementById('equipment_type');
+            
+            if (!productionDateEl.value || !equipmentTypeEl.value) return;
+            
+            // 发送AJAX请求获取该类型设备的有效期
+            fetch(`/equipment/get_expiry_years?type=${encodeURIComponent(equipmentTypeEl.value)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.expiry_years > 0) {
+                        // 计算到期日期: 生产日期 + 有效期年数
+                        const productionDate = new Date(productionDateEl.value);
+                        const expiryDate = new Date(productionDate);
+                        expiryDate.setFullYear(expiryDate.getFullYear() + data.expiry_years);
+                        
+                        // 设置到期日期字段
+                        expiryDateEl.value = expiryDate.toISOString().split('T')[0];
+                    }
+                })
+                .catch(error => console.error('获取有效期信息失败:', error));
+        }
+        
+        // 设备类型变化时也尝试计算到期日期
+        const equipmentTypeEl = document.getElementById('equipment_type');
+        if (equipmentTypeEl) {
+            equipmentTypeEl.addEventListener('change', calculateExpiryDate);
+        }
+    });
+</script>
+{% endblock %}

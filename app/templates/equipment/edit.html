@@ -129,7 +129,9 @@
                                 <!-- 生产日期 -->
                                 <div class="col-md-4">
                                     <label for="production_date" class="form-label required-field">生产日期</label>
-                                    <input type="date" class="form-control" id="production_date" name="production_date" value="{{ equipment.production_date.strftime('%Y-%m-%d') if equipment.production_date }}" required>
+                                    <input type="date" class="form-control date-picker" id="production_date" name="production_date" 
+                                           value="{{ equipment.production_date.strftime('%Y-%m-%d') if equipment.production_date and equipment.production_date is not string else equipment.production_date }}" required>
+                                    <div class="form-text">请使用日期选择器选择生产日期</div>
                                 </div>
                                 
                                 <!-- 使用年限 -->
@@ -140,8 +142,16 @@
                                 
                                 <!-- 到期日期 -->
                                 <div class="col-md-4">
-                                    <label for="expiration_date" class="form-label">到期日期</label>
-                                    <input type="date" class="form-control" id="expiration_date" name="expiration_date" value="{{ equipment.expiration_date }}">
+                                    <label for="expiry_date" class="form-label">到期日期</label>
+                                    <input type="date" class="form-control date-picker" id="expiry_date" name="expiry_date" 
+                                           value="{% if equipment.expiration_date %}
+                                                    {% if equipment.expiration_date is string %}
+                                                        {{ equipment.expiration_date }}
+                                                    {% else %}
+                                                        {{ equipment.expiration_date.strftime('%Y-%m-%d') }}
+                                                    {% endif %}
+                                                  {% endif %}">
+                                    <div class="form-text">如果留空，将根据生产日期和有效期规则自动计算</div>
                                 </div>
                             </div>
                         </div>
@@ -173,12 +183,13 @@
 {% endblock %}
 
 {% block scripts %}
+{{ super() }}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // 生产日期和到期日期联动
     const productionDateInput = document.getElementById('production_date');
     const serviceLiveInput = document.getElementById('service_life');
-    const expirationDateInput = document.getElementById('expiration_date');
+    const expirationDateInput = document.getElementById('expiry_date');
     
     function updateExpirationDate() {
         const prodDate = productionDateInput.value;
@@ -205,6 +216,22 @@ document.addEventListener('DOMContentLoaded', function() {
         serviceLiveInput.addEventListener('change', updateExpirationDate);
         serviceLiveInput.addEventListener('input', updateExpirationDate);
     }
+
+    // 为所有日期选择器添加最大日期限制（今天）
+    const datePickers = document.querySelectorAll('.date-picker');
+    const today = new Date().toISOString().split('T')[0]; // 格式: YYYY-MM-DD
+    
+    datePickers.forEach(picker => {
+        // 限制生产日期不能超过今天
+        if (picker.id === 'production_date') {
+            picker.setAttribute('max', today);
+        }
+        
+        // 监听生产日期变化，自动计算到期日期
+        if (picker.id === 'production_date') {
+            picker.addEventListener('change', updateExpirationDate);
+        }
+    });
 });
 </script>
 {% endblock %}

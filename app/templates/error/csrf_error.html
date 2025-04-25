@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+
+{% block title %}CSRF验证失败 - 消防安全管理系统{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h4 class="mb-0"><i class="bi bi-shield-exclamation me-2"></i>CSRF安全验证失败</h4>
+                </div>
+                <div class="card-body">
+                    <div class="text-center mb-4">
+                        <i class="bi bi-x-circle text-danger" style="font-size: 4rem;"></i>
+                    </div>
+                    
+                    <h5 class="text-center mb-4">{{ message }}</h5>
+                    
+                    <p>发生这种情况可能是因为：</p>
+                    <ul>
+                        <li>您的会话已过期</li>
+                        <li>您使用了浏览器的后退按钮查看缓存页面</li>
+                        <li>您同时在多个窗口中操作了系统</li>
+                        <li>浏览器禁用了Cookie或阻止了第三方Cookie</li>
+                    </ul>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>为了保护您的账户安全，系统需要验证每个请求的来源。请刷新页面后重试。
+                    </div>
+                    
+                    <div class="text-center mt-4">
+                        <a href="javascript:window.location.reload(true)" class="btn btn-primary me-2">
+                            <i class="bi bi-arrow-clockwise me-1"></i>刷新页面
+                        </a>
+                        <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-house me-1"></i>返回首页
+                        </a>
+                    </div>
+                    
+                    <div class="mt-5">
+                        <h6 class="text-muted">调试信息</h6>
+                        <div class="small text-muted">
+                            <p>如果问题持续存在，请向系统管理员提供以下信息：</p>
+                            <ul>
+                                <li>浏览器: <span id="browser-info">正在检测...</span></li>
+                                <li>CSRF令牌状态: <span id="csrf-token-status">正在检测...</span></li>
+                                <li>Cookie启用状态: <span id="cookie-status">正在检测...</span></li>
+                                <li>错误时间: {{ now }}</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 检测浏览器信息
+    document.getElementById('browser-info').textContent = navigator.userAgent;
+    
+    // 检测CSRF令牌
+    const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+    if (csrfMeta && csrfMeta.getAttribute('content')) {
+        document.getElementById('csrf-token-status').textContent = 
+            '存在 (' + csrfMeta.getAttribute('content').substring(0, 5) + '...)';
+    } else {
+        document.getElementById('csrf-token-status').textContent = '缺失';
+    }
+    
+    // 检测Cookie
+    document.getElementById('cookie-status').textContent = 
+        navigator.cookieEnabled ? '已启用' : '已禁用';
+});
+</script>
+{% endblock %}

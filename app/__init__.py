@@ -1,7 +1,7 @@
-from flask import Flask, redirect, url_for, request
+from flask import Flask, redirect, url_for, request, jsonify, render_template
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, current_user
-from flask_wtf.csrf import CSRFProtect, generate_csrf
+from flask_wtf.csrf import CSRFProtect, generate_csrf, CSRFError
 import os
 import sys
 from datetime import datetime, timedelta
@@ -27,9 +27,16 @@ def create_app(config_class=Config):
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data/database.db')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     
-    # 确保WTF CSRF保护已启用
+    # 增强CSRF保护配置
     app.config['WTF_CSRF_ENABLED'] = True
     app.config['WTF_CSRF_SECRET_KEY'] = app.config['SECRET_KEY']
+    app.config['WTF_CSRF_TIME_LIMIT'] = 7200  # 增加CSRF令牌有效期到2小时
+    app.config['WTF_CSRF_SSL_STRICT'] = False  # 允许非SSL环境
+    app.config['WTF_CSRF_METHODS'] = ['POST', 'PUT', 'PATCH', 'DELETE']
+    
+    # 确保Cookie设置兼容所有浏览器
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # 允许从外部链接直接导航时发送Cookie
+    app.config['SESSION_COOKIE_SECURE'] = False    # 非HTTPS环境下也可使用
     
     # 配置邮箱
     app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER')
@@ -47,13 +54,22 @@ def create_app(config_class=Config):
     login_manager.init_app(app)
     csrf.init_app(app)
     
+    # 注册静态资源蓝图
+    from app.routes.static_resources import static_bp
+    app.register_blueprint(static_bp, url_prefix='/static')
+    
     @app.after_request
     def add_header(response):
         response.headers['X-Content-Type-Options'] = 'nosniff'
-        if 'text/html' in response.content_type:
-            response.headers['Cache-Control'] = 'public, max-age=0'
-        elif '.css' in request.path or '.js' in request.path:
-            response.headers['Cache-Control'] = 'public, max-age=86400'
+        if app.debug:
+            # 开发环境不缓存
+            response.headers['Cache-Control'] = 'no-store'
+        else:
+            # 生产环境中，HTML不缓存，但静态资源缓存1天
+            if 'text/html' in response.content_type:
+                response.headers['Cache-Control'] = 'no-cache'
+            else:
+                response.headers['Cache-Control'] = 'public, max-age=86400'
         return response
     
     # 添加缓存破坏函数
@@ -144,7 +160,7 @@ def create_app(config_class=Config):
 
     # 添加调度器
     print("\n开始初始化定时任务调度器...")
-    from app.scheduler import scheduler, init_scheduler
+    from app.scheduler import init_scheduler
     init_scheduler(app)
 
     # 注册URL转换器
@@ -175,13 +191,32 @@ def create_app(config_class=Config):
     from app.routes.analytics import analytics_bp
     app.register_blueprint(analytics_bp, url_prefix='/analytics')
     
-    # 在注册蓝图部分添加以下代码
+    # 注册调度器蓝图
     from app.routes.scheduler import scheduler_bp
     app.register_blueprint(scheduler_bp, url_prefix='/scheduler')
+    
+    # 注册CSRF错误处理蓝图
+    from app.routes.admin_csrf import admin_csrf_bp
+    app.register_blueprint(admin_csrf_bp)
     
     # 注册错误处理器
     from app.error_handlers import register_error_handlers
     register_error_handlers(app)
+    
+    # 添加CSRF错误处理器
+    @app.errorhandler(CSRFError)
+    def handle_csrf_error(e):
+        # 修复：使用X-Requested-With头代替已移除的is_xhr属性
+        is_ajax_request = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+        is_json_request = request.content_type == 'application/json'
+        
+        if is_json_request or is_ajax_request:
+            return jsonify({
+                'success': False, 
+                'error': 'CSRF令牌验证失败，请刷新页面后重试'
+            }), 400
+        return render_template('error/csrf_error.html', 
+                               message='安全验证失败，请返回并刷新页面'), 400
     
     # 添加测试路由
     @app.route('/test')
@@ -202,7 +237,6 @@ def create_app(config_class=Config):
                 operation_type='微型消防站',
                 can_view=True
             ).first()
-            
             equipment_permission = Permission.query.filter_by(
                 user_id=current_user.id,
                 operation_type='灭火器和呼吸器',
@@ -212,7 +246,6 @@ def create_app(config_class=Config):
             # 如果用户没有任何权限，则显示无权限页面
             if not station_permission and not equipment_permission:
                 return redirect(url_for('common.index_no_permission'))
-        
         return redirect(url_for('station.index'))
     
     # index重定向
@@ -220,6 +253,7 @@ def create_app(config_class=Config):
     def redirect_index():
         return redirect(url_for('index'))
     
+    # 返回app实例
     return app
 
 # 导入模型

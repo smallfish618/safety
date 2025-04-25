@@ -394,3 +394,84 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
+
+/**
+ * 模态框辅助工具 - 确保模态框正常工作
+ */
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('模态框辅助工具已加载');
+    
+    // 定期清理可能的残留模态框backdrop
+    function cleanupModalBackdrops() {
+        // 检查是否有多余的backdrop
+        const backdrops = document.querySelectorAll('.modal-backdrop');
+        if (backdrops.length > 1) {
+            console.warn(`发现${backdrops.length}个模态框背景，清理多余的`);
+            // 只保留最后一个backdrop
+            for (let i = 0; i < backdrops.length - 1; i++) {
+                backdrops[i].remove();
+            }
+        }
+        
+        // 检查body是否有modal-open类但没有可见模态框
+        const visibleModals = document.querySelectorAll('.modal.show');
+        if (visibleModals.length === 0 && document.body.classList.contains('modal-open')) {
+            console.warn('发现body有modal-open类但没有可见模态框，清理样式');
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+            
+            // 同时移除所有backdrop
+            backdrops.forEach(backdrop => backdrop.remove());
+        }
+    }
+    
+    // 每秒钟检查一次
+    setInterval(cleanupModalBackdrops, 1000);
+    
+    // 为所有模态框添加额外的错误处理
+    document.querySelectorAll('.modal').forEach(modalElement => {
+        // 监听模态框关闭事件
+        modalElement.addEventListener('hidden.bs.modal', function() {
+            console.log(`模态框 ${this.id} 已关闭，执行清理`);
+            cleanupModalBackdrops();
+        });
+        
+        // 监听模态框打开事件
+        modalElement.addEventListener('shown.bs.modal', function() {
+            console.log(`模态框 ${this.id} 已打开`);
+        });
+        
+        // 尝试为打开此模态框的按钮添加备份事件处理
+        const modalId = modalElement.id;
+        if (modalId) {
+            document.querySelectorAll(`[data-bs-target="#${modalId}"], [data-target="#${modalId}"]`).forEach(trigger => {
+                trigger.addEventListener('click', function(e) {
+                    console.log(`模态框触发按钮被点击，目标: ${modalId}`);
+                    try {
+                        const modal = new bootstrap.Modal(document.getElementById(modalId));
+                        modal.show();
+                    } catch (error) {
+                        console.error(`使用主方法无法打开模态框 ${modalId}:`, error);
+                        try {
+                            // 备用方法
+                            $(`#${modalId}`).modal('show');
+                        } catch (jqError) {
+                            console.error(`使用备用jQuery方法也无法打开模态框:`, jqError);
+                        }
+                    }
+                });
+            });
+        }
+    });
+    
+    // 为所有需要打开模态框的按钮添加备用事件处理
+    document.querySelectorAll('[data-bs-toggle="modal"]').forEach(button => {
+        const targetModalId = button.getAttribute('data-bs-target') || button.getAttribute('data-target');
+        if (targetModalId) {
+            button.addEventListener('click', function(e) {
+                console.log(`模态框按钮点击，目标: ${targetModalId}`);
+            });
+        }
+    });
+});

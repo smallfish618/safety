@@ -1,0 +1,213 @@
+<!-- 在内容区的操作按钮部分 -->
+<div class="btn-group btn-group-sm">
+    <!-- 查看按钮 - 使用data-id属性存储ID -->
+    <button type="button" class="btn btn-info btn-view" data-id="{{ item.id }}" title="查看">
+        <svg class="nav-icon" style="width:1em;height:1em" fill="currentColor" pointer-events="none">
+            <use xlink:href="#icon-eye"></use>
+        </svg>
+    </button>
+    
+    <!-- 编辑按钮 -->
+    {% if can_edit %}
+    <button type="button" class="btn btn-primary btn-edit" data-id="{{ item.id }}" title="编辑">
+        <svg class="nav-icon" style="width:1em;height:1em" fill="currentColor" pointer-events="none">
+            <use xlink:href="#icon-pencil"></use>
+        </svg>
+    </button>
+    {% endif %}
+    
+    <!-- 删除按钮 -->
+    {% if can_delete %}
+    <button type="button" class="btn btn-danger btn-delete" 
+            data-id="{{ item.id }}" 
+            data-name="{{ item.item_name }}" title="删除">
+        <svg class="nav-icon" style="width:1em;height:1em" fill="currentColor" pointer-events="none">
+            <use xlink:href="#icon-trash"></use>
+        </svg>
+    </button>
+    {% endif %}
+</div>
+
+<!-- 添加按钮部分 -->
+{% if can_add %}
+<button class="btn btn-primary" id="addItemButton" title="添加物资">
+    <svg class="nav-icon" style="width:1em;height:1em;margin-right:5px" fill="currentColor">
+        <use xlink:href="#icon-plus"></use>
+    </svg>
+    添加物资
+</button>
+{% endif %}
+
+{% block scripts %}
+<!-- 添加操作按钮需要的图标 -->
+<div class="svg-icons" style="display:none">
+    <svg xmlns="http://www.w3.org/2000/svg">
+        <!-- 查看图标 -->
+        <symbol id="icon-eye" viewBox="0 0 16 16">
+            <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/>
+            <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/>
+        </symbol>
+        <!-- 编辑图标 -->
+        <symbol id="icon-pencil" viewBox="0 0 16 16">
+            <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/>
+        </symbol>
+        <!-- 删除图标 -->
+        <symbol id="icon-trash" viewBox="0 0 16 16">
+            <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+            <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+        </symbol>
+        <!-- 添加图标 -->
+        <symbol id="icon-plus" viewBox="0 0 16 16">
+            <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+        </symbol>
+    </svg>
+</div>
+
+<!-- 引入站点专用JavaScript -->
+<script src="{{ url_for('static', filename='js/station.js') }}?v={{ cache_buster }}"></script>
+
+<!-- 添加调试代码和备用方案 -->
+<script>
+    // 添加DOMContentLoaded事件监听器，确保在DOM加载完成后初始化模态框
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOM加载完成，检查模态框状态');
+        
+        // 检查Bootstrap是否正常加载
+        if (typeof bootstrap === 'undefined') {
+            console.error('警告: Bootstrap未加载，模态框将无法正常工作');
+        } else {
+            console.log('Bootstrap已加载，版本:', bootstrap.Alert.VERSION);
+            
+            // 确保所有模态框都被正确初始化
+            document.querySelectorAll('.modal').forEach(function(modal) {
+                try {
+                    new bootstrap.Modal(modal);
+                    console.log('模态框初始化成功:', modal.id);
+                } catch (e) {
+                    console.error('模态框初始化失败:', modal.id, e);
+                }
+            });
+        }
+        
+        // 临时修复方案：手动绑定按钮事件
+        if (typeof stationInitialized === 'undefined') {
+            console.warn('检测到station.js可能未正确加载，应用临时修复方案');
+            
+            // 查看按钮
+            document.querySelectorAll('.btn-view').forEach(function(btn) {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const itemId = this.getAttribute('data-id');
+                    console.log('临时处理：查看按钮点击，ID:', itemId);
+                    
+                    try {
+                        const viewModal = new bootstrap.Modal(document.getElementById('viewModal'));
+                        viewModal.show();
+                    } catch (error) {
+                        console.error('显示查看模态框失败:', error);
+                        alert('模态框打开失败，请检查控制台错误');
+                    }
+                });
+            });
+            
+            // 编辑按钮
+            document.querySelectorAll('.btn-edit').forEach(function(btn) {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const itemId = this.getAttribute('data-id');
+                    console.log('临时处理：编辑按钮点击，ID:', itemId);
+                    
+                    try {
+                        const editModal = new bootstrap.Modal(document.getElementById('editModal'));
+                        editModal.show();
+                    } catch (error) {
+                        console.error('显示编辑模态框失败:', error);
+                        alert('模态框打开失败，请检查控制台错误');
+                    }
+                });
+            });
+            
+            // 删除按钮
+            document.querySelectorAll('.btn-delete').forEach(function(btn) {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const itemId = this.getAttribute('data-id');
+                    const itemName = this.getAttribute('data-name');
+                    console.log('临时处理：删除按钮点击，ID:', itemId, '名称:', itemName);
+                    
+                    try {
+                        document.getElementById('deleteId').value = itemId;
+                        const deleteItemNameEl = document.getElementById('deleteItemName');
+                        if (deleteItemNameEl) deleteItemNameEl.textContent = itemName || '此物资';
+                        
+                        const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+                        deleteModal.show();
+                    } catch (error) {
+                        console.error('显示删除模态框失败:', error);
+                        alert('模态框打开失败，请检查控制台错误');
+                    }
+                });
+            });
+            
+            // 添加按钮
+            const addButton = document.getElementById('addItemButton');
+            if (addButton) {
+                addButton.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    console.log('临时处理：添加按钮点击');
+                    
+                    try {
+                        const form = document.getElementById('addItemForm');
+                        if (form) form.reset();
+                        
+                        const addModal = new bootstrap.Modal(document.getElementById('addModal'));
+                        addModal.show();
+                    } catch (error) {
+                        console.error('显示添加模态框失败:', error);
+                        alert('模态框打开失败，请检查控制台错误');
+                    }
+                });
+            }
+        }
+    });
+</script>
+{% endblock %}
+<!-- 添加调试和备用方法脚本 -->
+<script>
+    // 页面加载完成后检查按钮和模态框状态
+    $(document).ready(function() {
+        console.log("页面加载完成，检查按钮和模态框状态");
+        
+        // 检查所有操作按钮是否存在
+        $('.btn-view, .btn-edit, .btn-delete, #addItemButton').each(function() {
+            console.log("找到按钮:", $(this).attr('class'), "数据ID:", $(this).data('id'));
+        });
+        
+        // 检查所有模态框是否存在
+        $('.modal').each(function() {
+            console.log("找到模态框:", this.id);
+        });
+        
+        // 备用方法：为所有按钮添加显式的click处理
+        $('.btn-view').click(function(e) {
+            console.log("备用方法 - 视图按钮点击");
+            $('#viewModal').modal('show');
+        });
+        
+        $('.btn-edit').click(function(e) {
+            console.log("备用方法 - 编辑按钮点击");
+            $('#editModal').modal('show');
+        });
+        
+        $('.btn-delete').click(function(e) {
+            console.log("备用方法 - 删除按钮点击");
+            $('#deleteModal').modal('show');
+        });
+        
+        $('#addItemButton').click(function(e) {
+            console.log("备用方法 - 添加按钮点击");
+            $('#addModal').modal('show');
+        });
+    });
+</script>
+{% endblock %}

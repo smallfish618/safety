@@ -1,0 +1,241 @@
+/* 自定义样式可在这里添加 */
+
+/* 基本导航栏样式 */
+.sidebar {
+    min-height: 100vh;
+    box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1);
+    background-color: #343a40 !important;
+}
+
+.sidebar .nav-link {
+    color: #ced4da;
+    padding: 0.75rem 1rem;
+    font-weight: 500;
+    border-left: 3px solid transparent;
+}
+
+.sidebar .nav-link:hover {
+    color: #fff;
+    background-color: rgba(255, 255, 255, 0.05);
+    border-left: 3px solid #6c757d;
+}
+
+.sidebar .nav-link.active {
+    color: #fff;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-left: 3px solid #0d6efd;
+}
+
+.sidebar .nav-link .bi {
+    margin-right: 6px;
+}
+
+/* 用户信息区样式 */
+.sidebar .user-info {
+    padding: 0.75rem 1rem;
+    background-color: rgba(0, 0, 0, 0.15);
+    bottom: 0;
+    width: 100%;
+}
+
+.sidebar .user-name {
+    color: #fff;
+    font-weight: 500;
+    margin-bottom: 0;
+}
+
+.sidebar .user-role {
+    color: #adb5bd;
+    font-size: 0.8rem;
+}
+
+/* 响应式设计 */
+@media (max-width: 767.98px) {
+    .sidebar {
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 1030;
+        width: 75% !important;
+        max-width: 250px;
+        overflow-y: auto;
+        transition: all 0.3s ease;
+    }
+    
+    /* 导航按钮样式 */
+    #sidebarToggle {
+        transition: all 0.3s ease;
+    }
+    
+    #sidebarToggle:hover {
+        transform: rotate(90deg);
+    }
+}
+
+/* 下拉菜单样式 */
+.dropdown-menu-dark {
+    background-color: #2c3034;
+}
+
+.dropdown-menu-dark .dropdown-item {
+    color: #dee2e6;
+}
+
+.dropdown-menu-dark .dropdown-item:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+    color: #fff;
+}
+
+/* 主内容区域样式 */
+main {
+    transition: margin-left 0.3s;
+}
+
+/* 增加一些内容区域的内边距 */
+.container-fluid {
+    padding-left: 0;
+    padding-right: 0;
+}
+
+/* 修复Bootstrap Icons字体路径问题 */
+@font-face {
+  font-family: "bootstrap-icons";
+  src: url("../fonts/bootstrap-icons.woff2?v={{ cache_buster }}") format("woff2"),
+       url("../fonts/bootstrap-icons.woff?v={{ cache_buster }}") format("woff");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap; /* 确保字体不可见时使用后备字体 */
+}
+
+/* 确保图标总是显示 */
+.bi::before {
+  display: inline-block !important;
+  font-family: bootstrap-icons !important;
+  font-style: normal;
+  font-weight: normal !important;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1;
+  vertical-align: -0.125em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 提高导航项目的z-index，确保下拉菜单正确显示 */
+.sidebar .nav-item {
+  position: relative;
+  z-index: 10;
+}
+
+/* 确保下拉菜单显示在内容之上 */
+.sidebar .dropdown-menu {
+  z-index: 1021;
+  min-width: 200px;
+}
+
+/* 确保Bootstrap图标始终正确显示的CSS修复 */
+/* 放在文件最后覆盖其它可能的样式 */
+
+/* 字体定义 - 使用绝对路径确保在任何页面都能正确加载 */
+@font-face {
+  font-family: "bootstrap-icons";
+  src: url("/static/fonts/bootstrap-icons.woff2") format("woff2"),
+       url("/static/fonts/bootstrap-icons.woff") format("woff");
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+
+.bi::before,
+[class^="bi-"]::before,
+[class*=" bi-"]::before {
+  display: inline-block !important;
+  font-family: bootstrap-icons !important;
+  font-style: normal;
+  font-weight: normal !important;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1;
+  vertical-align: -0.125em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 修复下拉菜单样式 */
+.nav-item .dropdown-menu {
+  position: absolute;
+  z-index: 1000;
+  min-width: 10rem;
+  padding: 0.5rem 0;
+  margin: 0.125rem 0 0;
+  font-size: 1rem;
+  color: #212529;
+  background-color: #343a40;
+  background-clip: padding-box;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 0.25rem;
+}
+
+/* 确保下拉菜单项样式正确 */
+.nav-item .dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 0.25rem 1.5rem;
+  clear: both;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.8);
+  text-align: inherit;
+  white-space: nowrap;
+  background-color: transparent;
+  border: 0;
+}
+
+.nav-item .dropdown-item:hover,
+.nav-item .dropdown-item:focus {
+  color: #fff;
+  text-decoration: none;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* 将这段代码添加到文件末尾，覆盖之前的相关规则 */
+
+/* 强制显示Bootstrap图标 - 使用更高优先级选择器 */
+.sidebar .nav-link .bi::before,
+.sidebar .nav-link [class^="bi-"]::before,
+.sidebar .nav-link [class*=" bi-"]::before,
+.bi::before,
+[class^="bi-"]::before,
+[class*=" bi-"]::before {
+  display: inline-block !important;
+  font-family: bootstrap-icons !important;
+  font-style: normal !important;
+  font-weight: normal !important;
+  font-variant: normal !important;
+  text-transform: none !important;
+  line-height: 1 !important;
+  vertical-align: -0.125em !important;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+}
+
+/* 确保Bootstrap图标字体加载正确 */
+@font-face {
+  font-family: "bootstrap-icons";
+  src: url("/static/fonts/bootstrap-icons.woff2") format("woff2"),
+       url("/static/fonts/bootstrap-icons.woff") format("woff");
+  font-weight: normal !important;
+  font-style: normal !important;
+  font-display: block !important;
+}
+
+/* 使用硬编码的图标内容作为备份 */
+.sidebar .nav-link .bi-box::before { content: "\f1c3"; }
+.sidebar .nav-link .bi-fire::before { content: "\f4d5"; }
+.sidebar .nav-link .bi-clock-history::before { content: "\f294"; }
+.sidebar .nav-link .bi-calendar-check::before { content: "\f210"; }
+.sidebar .nav-link .bi-person-badge::before { content: "\f48b"; }
+.sidebar .nav-link .bi-people::before { content: "\f476"; }
+.sidebar .nav-link .bi-envelope-check::before { content: "\f42e"; }
+.sidebar .nav-link .bi-bar-chart-line::before { content: "\f12c"; }
+.sidebar .nav-link .bi-alarm::before { content: "\f103"; }

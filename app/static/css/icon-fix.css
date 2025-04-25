@@ -1,0 +1,72 @@
+/* 图标修复专用CSS - 修复字体加载 */
+
+/* 确保Bootstrap Icons字体始终加载 - 使用绝对硬编码路径 */
+@font-face {
+    font-family: "bootstrap-icons" !important;
+    src: url("/static/fonts/bootstrap-icons.woff2") format("woff2"),
+         url("/static/fonts/bootstrap-icons.woff") format("woff");
+    font-weight: normal !important;
+    font-style: normal !important;
+    font-display: block !important;
+}
+
+/* 增强图标选择器，使用更具体的选择器提高优先级 */
+body .sidebar .nav-link i.bi::before,
+body .sidebar .nav-link span.bi::before,
+html body i.bi::before,
+html body span.bi::before,
+i.bi::before,
+span.bi::before,
+.bi::before {
+    display: inline-block !important;
+    font-family: "bootstrap-icons", sans-serif !important;
+    font-style: normal !important;
+    font-weight: normal !important;
+    font-variant: normal !important;
+    text-transform: none !important;
+    line-height: 1 !important;
+    vertical-align: -0.125em !important;
+    -webkit-font-smoothing: antialiased !important;
+    -moz-osx-font-smoothing: grayscale !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+/* 添加备用图标字体族 */
+.bi::before {
+    font-family: "bootstrap-icons", sans-serif !important;
+}
+
+/* 为每个导航图标指定具体内容 */
+.sidebar .nav-link .bi-box::before { content: "\f1c3" !important; }
+.sidebar .nav-link .bi-fire::before { content: "\f4d5" !important; }
+.sidebar .nav-link .bi-clock-history::before { content: "\f294" !important; }
+.sidebar .nav-link .bi-calendar-check::before { content: "\f210" !important; }
+.sidebar .nav-link .bi-person-badge::before { content: "\f48b" !important; }
+.sidebar .nav-link .bi-people::before { content: "\f476" !important; }
+.sidebar .nav-link .bi-envelope-check::before { content: "\f42e" !important; }
+.sidebar .nav-link .bi-bar-chart-line::before { content: "\f12c" !important; }
+.sidebar .nav-link .bi-alarm::before { content: "\f103" !important; }
+.sidebar .nav-link .bi-shield-fill-check::before { content: "\f432" !important; }
+.sidebar .nav-link .bi-lock-fill::before { content: "\f47a" !important; }
+.sidebar .nav-link .bi-box-arrow-right::before { content: "\f1f5" !important; }
+.sidebar .nav-link .bi-box-arrow-in-right::before { content: "\f1ee" !important; }
+.sidebar .nav-link .bi-list::before { content: "\f478" !important; }
+
+/* 备用图标容器样式 */
+.icon-backup {
+    font-family: "bootstrap-icons", sans-serif !important;
+    visibility: visible !important;
+    display: inline-block !important;
+}
+
+/* 特殊处理导航项中的图标 */
+.sidebar .nav-link .bi {
+    display: inline-block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    margin-right: 0.5rem !important;
+    width: 1.2em !important;
+    height: 1.2em !important;
+    text-align: center !important;
+}

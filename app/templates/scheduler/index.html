@@ -99,6 +99,13 @@
                                     发送给所有负责人
                                 </label>
                             </div>
+                            <!-- 添加管理员收件人选项 -->
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="recipient_filter" id="admin_recipients" value="admin">
+                                <label class="form-check-label" for="admin_recipients">
+                                    <i class="bi bi-shield-lock me-1"></i> 仅发送给管理员（包含所有区域数据）
+                                </label>
+                            </div>
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="recipient_filter" id="selected_recipients" value="specific">
                                 <label class="form-check-label" for="selected_recipients">
@@ -205,6 +212,8 @@
                             <td>
                                 {% if config.recipient_filter == 'all' %}
                                 <span class="badge bg-secondary">所有负责人</span>
+                                {% elif config.recipient_filter == 'admin' %}
+                                <span class="badge bg-secondary">仅管理员</span>
                                 {% else %}
                                 <span class="badge bg-secondary">{{ config.recipient_filter }}</span>
                                 {% endif %}
@@ -326,14 +335,21 @@
                                                                     发送给所有负责人
                                                                 </label>
                                                             </div>
+                                                            <!-- 添加编辑模态框中的管理员选项 -->
                                                             <div class="form-check">
-                                                                <input class="form-check-input" type="radio" name="recipient_filter" id="edit-selected_recipients-{{ config.id }}" value="specific" {% if config.recipient_filter != 'all' %}checked{% endif %}>
+                                                                <input class="form-check-input" type="radio" name="recipient_filter" id="edit-admin_recipients-{{ config.id }}" value="admin" {% if config.recipient_filter == 'admin' %}checked{% endif %}>
+                                                                <label class="form-check-label" for="edit-admin_recipients-{{ config.id }}">
+                                                                    <i class="bi bi-shield-lock me-1"></i> 仅发送给管理员
+                                                                </label>
+                                                            </div>
+                                                            <div class="form-check">
+                                                                <input class="form-check-input" type="radio" name="recipient_filter" id="edit-selected_recipients-{{ config.id }}" value="specific" {% if config.recipient_filter != 'all' and config.recipient_filter != 'admin' %}checked{% endif %}>
                                                                 <label class="form-check-label" for="edit-selected_recipients-{{ config.id }}">
                                                                     仅发送给选中的负责人
                                                                 </label>
                                                             </div>
                                                             
-                                                            <div id="edit-recipients-container-{{ config.id }}" style="display: {% if config.recipient_filter != 'all' %}block{% else %}none{% endif %};" class="mt-3">
+                                                            <div id="edit-recipients-container-{{ config.id }}" style="display: {% if config.recipient_filter != 'all' and config.recipient_filter != 'admin' %}block{% else %}none{% endif %};" class="mt-3">
                                                                 <div class="form-check">
                                                                     <input class="form-check-input edit-select-all-{{ config.id }}" type="checkbox" id="edit-select-all-{{ config.id }}">
                                                                     <label class="form-check-label" for="edit-select-all-{{ config.id }}">
@@ -348,8 +364,8 @@
                                                                                 type="checkbox" 
                                                                                 name="selected_recipients" 
                                                                                 id="edit-responsible-{{ config.id }}-{{ person.id }}" 
-                                                                                value="{{ person.person_name }}"
-                                                                                {% if config.recipient_filter != 'all' and person.person_name in config.recipient_filter %}checked{% endif %}>
+                                                                                value="{{ person.person_name }}" 
+                                                                                {% if config.recipient_filter != 'all' and config.recipient_filter != 'admin' and person.person_name in config.recipient_filter %}checked{% endif %}>
                                                                             <label class="form-check-label" for="edit-responsible-{{ config.id }}-{{ person.id }}">
                                                                                 {{ person.person_name }} ({{ person.area_name }})
                                                                             </label>
@@ -414,13 +430,14 @@
 {% block scripts %}
 {{ super() }}
 <script>
+    // 频率选项切换函数
     function toggleFrequencyOptions(frequencyType) {
         // 隐藏所有选项
         document.querySelectorAll('.frequency-option').forEach(element => {
             element.style.display = 'none';
         });
         
-        // 显示相应选项
+        // 根据频率类型显示相应选项
         if (frequencyType === 'weekly') {
             document.querySelectorAll('.weekly-option').forEach(element => {
                 element.style.display = 'block';
@@ -432,13 +449,14 @@
         }
     }
     
+    // 编辑模态框频率选项切换函数
     function toggleEditFrequencyOptions(configId, frequencyType) {
         // 隐藏所有选项
         document.querySelectorAll(`.edit-frequency-option`).forEach(element => {
             element.style.display = 'none';
         });
         
-        // 显示相应选项
+        // 根据频率类型显示相应选项
         if (frequencyType === 'weekly') {
             document.querySelectorAll(`.edit-weekly-option-${configId}`).forEach(element => {
                 element.style.display = 'block';
@@ -450,6 +468,7 @@
         }
     }
     
+    // 页面加载时初始化
     document.addEventListener('DOMContentLoaded', function() {
         // 处理收件人筛选选项
         const recipientFilterRadios = document.querySelectorAll('input[name="recipient_filter"]');
@@ -465,7 +484,7 @@
             });
         });
         
-        // 全选/取消全选功能
+        // 处理全选复选框
         const selectAllCheckbox = document.querySelector('.select-all-recipients');
         const responsibleCheckboxes = document.querySelectorAll('.responsible-checkbox');
         
@@ -477,7 +496,7 @@
             });
         }
         
-        // 编辑任务模态框打开时的处理逻辑
+        // 编辑模态框按钮事件处理
         $('.edit-modal-button').on('click', function() {
             const configId = $(this).data('config-id');
             const recipientFilter = $(this).data('recipient-filter');
@@ -486,6 +505,9 @@
             // 设置收件人选择
             if (recipientFilter === 'all') {
                 modal.find('#edit-all_recipients-' + configId).prop('checked', true);
+                modal.find('#edit-recipients-container-' + configId).hide();
+            } else if (recipientFilter === 'admin') {
+                modal.find('#edit-admin_recipients-' + configId).prop('checked', true);
                 modal.find('#edit-recipients-container-' + configId).hide();
             } else {
                 modal.find('#edit-selected_recipients-' + configId).prop('checked', true);
@@ -502,12 +524,16 @@
             }
         });
         
-        // 为每个编辑模态框设置收件人选择功能
+        // 为每个配置设置编辑模态框中的收件人选择事件
         {% for config in configs %}
-        // 设置全选/取消全选功能
+        const allRecipientsRadio{{ config.id }} = document.getElementById('edit-all_recipients-{{ config.id }}');
+        const adminRecipientsRadio{{ config.id }} = document.getElementById('edit-admin_recipients-{{ config.id }}');
+        const selectedRecipientsRadio{{ config.id }} = document.getElementById('edit-selected_recipients-{{ config.id }}');
+        const recipientsContainer{{ config.id }} = document.getElementById('edit-recipients-container-{{ config.id }}');
         const selectAllCheckbox{{ config.id }} = document.querySelector('.edit-select-all-{{ config.id }}');
         const responsibleCheckboxes{{ config.id }} = document.querySelectorAll('.edit-responsible-checkbox-{{ config.id }}');
         
+        // 设置全选复选框事件
         if (selectAllCheckbox{{ config.id }}) {
             selectAllCheckbox{{ config.id }}.addEventListener('change', function() {
                 responsibleCheckboxes{{ config.id }}.forEach(checkbox => {
@@ -517,12 +543,14 @@
         }
         
         // 设置收件人筛选选项
-        const allRecipientsRadio{{ config.id }} = document.getElementById('edit-all_recipients-{{ config.id }}');
-        const selectedRecipientsRadio{{ config.id }} = document.getElementById('edit-selected_recipients-{{ config.id }}');
-        const recipientsContainer{{ config.id }} = document.getElementById('edit-recipients-container-{{ config.id }}');
-        
-        if (allRecipientsRadio{{ config.id }} && selectedRecipientsRadio{{ config.id }} && recipientsContainer{{ config.id }}) {
+        if (allRecipientsRadio{{ config.id }} && adminRecipientsRadio{{ config.id }} && selectedRecipientsRadio{{ config.id }} && recipientsContainer{{ config.id }}) {
             allRecipientsRadio{{ config.id }}.addEventListener('change', function() {
+                if (this.checked) {
+                    recipientsContainer{{ config.id }}.style.display = 'none';
+                }
+            });
+            
+            adminRecipientsRadio{{ config.id }}.addEventListener('change', function() {
                 if (this.checked) {
                     recipientsContainer{{ config.id }}.style.display = 'none';
                 }

@@ -1147,4 +1147,56 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 </script>
+
+<!-- 添加模态框修复脚本 -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 获取所有模态框元素
+    const modals = document.querySelectorAll('.modal');
+    
+    // 为每个模态框添加隐藏事件监听
+    modals.forEach(function(modal) {
+        modal.addEventListener('hidden.bs.modal', function() {
+            console.log('模态框已关闭，执行清理...');
+            
+            // 清理模态框状态
+            cleanupModalState();
+        });
+    });
+    
+    // 获取所有模态框关闭按钮（包括取消按钮）
+    const closeButtons = document.querySelectorAll('[data-bs-dismiss="modal"]');
+    
+    // 为每个关闭按钮添加点击事件，确保模态框正确关闭
+    closeButtons.forEach(function(button) {
+        button.addEventListener('click', function() {
+            // 延迟执行清理，确保Bootstrap的事件处理完成
+            setTimeout(cleanupModalState, 300);
+        });
+    });
+    
+    // 清理模态框状态的函数
+    function cleanupModalState() {
+        // 移除所有模态框背景
+        document.querySelectorAll('.modal-backdrop').forEach(function(backdrop) {
+            backdrop.remove();
+        });
+        
+        // 移除body上的modal-open类和内联样式
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+        
+        // 确保所有模态框都隐藏
+        document.querySelectorAll('.modal').forEach(function(modal) {
+            modal.style.display = 'none';
+            modal.classList.remove('show');
+            modal.setAttribute('aria-hidden', 'true');
+        });
+        
+        console.log('模态框状态清理完成');
+    }
+});
+</script>
 {% endblock %}
+`

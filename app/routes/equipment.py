@@ -382,7 +382,40 @@ def edit(equipment_id):
                     return redirect(url_for('equipment.index'))
             
             equipment.service_life = request.form.get('service_life')
-            equipment.expiration_date = request.form.get('expiration_date')
+            
+            # 修改这里：处理到期日期，确保不会设置为 NULL
+            expiration_date_str = request.form.get('expiry_date')
+            if expiration_date_str:
+                try:
+                    equipment.expiration_date = datetime.strptime(expiration_date_str, '%Y-%m-%d').date()
+                except ValueError:
+                    flash('到期日期格式不正确', 'danger')
+                    return redirect(url_for('equipment.edit', equipment_id=equipment_id))
+            else:
+                # 如果没有提供到期日期，则根据生产日期和使用年限计算
+                if equipment.production_date and equipment.service_life:
+                    # 尝试从使用年限中提取年数
+                    import re
+                    year_match = re.search(r'(\d+)', equipment.service_life)
+                    if year_match:
+                        years = int(year_match.group(1))
+                        # 计算到期日期 = 生产日期 + 使用年限(年)
+                        from datetime import timedelta
+                        equipment.expiration_date = equipment.production_date + timedelta(days=365*years)
+                    else:
+                        # 如果无法提取年数，则使用当前的到期日期
+                        # 如果当前也没有设置，则使用生产日期加5年作为默认值
+                        if not equipment.expiration_date:
+                            equipment.expiration_date = equipment.production_date + timedelta(days=365*5)
+                elif equipment.production_date:
+                    # 如果只有生产日期没有使用年限，默认使用生产日期加5年
+                    from datetime import timedelta
+                    equipment.expiration_date = equipment.production_date + timedelta(days=365*5)
+                else:
+                    # 如果连生产日期都没有，使用当前日期作为到期日期
+                    # 这种情况不应该发生，因为生产日期是必填的
+                    equipment.expiration_date = datetime.now().date()
+            
             equipment.remark = request.form.get('remark')
             
             # 更新时间戳
@@ -516,3 +549,41 @@ def debug_all():
     except Exception as e:
         traceback.print_exc()
         return f"错误: {str(e)}", 500
+
+@equipment_bp.route('/get_expiry_years')
+@login_required
+def get_expiry_years():
+    """获取设备类型的有效期年数"""
+    try:
+        equipment_type = request.args.get('type', '')
+        if not equipment_type:
+            return jsonify({'success': False, 'error': '设备类型不能为空'})
+        
+        # 查询有效期规则表
+        from app.models.station import EquipmentExpiry
+        
+        # 首先尝试精确匹配
+        rule = EquipmentExpiry.query.filter(EquipmentExpiry.item_name == equipment_type).first()
+        
+        # 如果精确匹配失败，尝试模糊匹配
+        if not rule:
+            rules = EquipmentExpiry.query.all()
+            for r in rules:
+                if equipment_type in r.item_name or r.item_name in equipment_type:
+                    rule = r
+                    break
+        
+        if rule and rule.normal_expiry > 0:
+            return jsonify({
+                'success': True, 
+                'expiry_years': rule.normal_expiry,
+                'item_name': rule.item_name
+            })
+        else:
+            return jsonify({
+                'success': False, 
+                'error': '未找到该设备类型的有效期规则或该设备长期有效'
+            })
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})

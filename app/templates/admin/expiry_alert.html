@@ -3,6 +3,10 @@
 {% block title %}有效期预警 - 消防安全管理系统{% endblock %}
 
 {% block content %}
+
+<!-- CSRF令牌 - 添加这个meta标签 -->
+<meta name="csrf-token" content="{{ csrf_token() }}">
+
 <div class="container-fluid">
     <h2 class="mb-4">
         <i class="bi bi-exclamation-triangle text-warning me-2"></i> 有效期预警
@@ -10,7 +14,7 @@
     </h2>
     
     <!-- 预警概览卡片 -->
-    <div class="card mb-4">
+    <div class="card mb-4 card-statistics">
         <div class="card-header">
             <h5 class="card-title mb-0">预警概览</h5>
         </div>
@@ -427,6 +431,12 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
                 </div>
                 <div class="modal-body">
+                    <!-- 添加警报容器 -->
+                    <div class="alert-container"></div>
+                    
+                    <!-- 添加隐藏的CSRF令牌 -->
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    
                     <div class="mb-3">
                         <label class="form-label">收件人:</label>
                         <div id="emailRecipients" class="form-control overflow-auto" style="max-height: 100px; height: auto;"></div>
@@ -534,13 +544,31 @@
             </div>
         </div>
     </div>
+
+    <!-- 在发送邮件模态框内部添加一个专门的警报容器 -->
+    <div class="modal fade" id="sendEmailModal" tabindex="-1" role="dialog" aria-labelledby="sendEmailModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="sendEmailModalLabel">发送预警邮件</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- 警报容器 - 添加这一行 -->
+                    <div class="alert-container"></div>
+                    
+                    <!-- 现有的模态框内容 -->
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
 {% block head %}
 {{ super() }}
-<meta name="csrf-token" content="{{ csrf_token() }}" data-csrf-token="{{ csrf_token() }}">
-<!-- 添加控制台调试输出的脚本 -->
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<!-- 保留原有代码 -->
 <script>
   console.log("页面加载 - CSRF令牌检查:");
   document.addEventListener('DOMContentLoaded', function() {
@@ -559,12 +587,6 @@
 {{ super() }}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // 启用Bootstrap工具提示功能
-    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-        return new bootstrap.Tooltip(tooltipTriggerEl);
-    });
-    
     // 声明全局变量 allItems，并填充完整数据，确保外部JS文件可以访问
     window.allItems = [
         {% for item in all_expiring_items %}
@@ -576,295 +598,260 @@ document.addEventListener('DOMContentLoaded', function() {
                 location: "{{ item.location|default('')|e }}",
                 expiry_date: "{{ item.expiry_date }}",
                 responsible_person: "{{ item.responsible_person|default('')|e }}",
-                type: "{{ item.type|default('')|e }}"
+                type: "{{ item.type|default('')|e }}",
+                source_table: "{{ item.source_table|default('')|e }}"
             },
         {% endfor %}
     ];
     
     console.log("初始化allItems数组，包含", window.allItems.length, "个物品");
     
-    // 添加调试输出，验证allItems数组是否正确初始化
-    console.log("验证allItems数组:", window.allItems);
-    if (!window.allItems || window.allItems.length === 0) {
-        console.error("警告: allItems数组为空，页面统计和邮件生成将无法正常工作");
-    }
-    
-    // 验证卡片计数逻辑
-    let expiredCount = 0;
-    let days30Count = 0;
-    let days60Count = 0;
-    let days90Count = 0;
-    
-    if (window.allItems && window.allItems.length > 0) {
-        window.allItems.forEach(item => {
-            const days = item.days_remaining;
-            if (days < 0) {
-                expiredCount++;
-            } else if (days <= 30) {
-                days30Count++;
-            } else if (days <= 60) {
-                days60Count++;
-            } else if (days <= 90) {
-                days90Count++;
-            }
-        });
-        
-        console.log("统计结果:", {
-            已到期: expiredCount,
-            "30天内到期": days30Count,
-            "60天内到期": days60Count, 
-            "90天内到期": days90Count,
-            总计: expiredCount + days30Count + days60Count + days90Count
-        });
-    }
-    
     // 更新卡片显示，确保数字正确
-    const updateStatCards = function() {
-        const expiredCardElement = document.querySelector('.card-body .row .col-md-3:nth-child(1) .card-body h3');
-        const days30CardElement = document.querySelector('.card-body .row .col-md-3:nth-child(2) .card-body h3');
-        const days60CardElement = document.querySelector('.card-body .row .col-md-3:nth-child(3) .card-body h3');
-        const days90CardElement = document.querySelector('.card-body .row .col-md-3:nth-child(4) .card-body h3');
+    const updateStatCards = function(items) {
+        // 如果没有传入items参数，则使用全局allItems
+        const itemsToCount = items || window.allItems;
+        
+        let expiredCount = 0;
+        let days30Count = 0;
+        let days60Count = 0;
+        let days90Count = 0;
+        
+        if (itemsToCount && itemsToCount.length > 0) {
+            itemsToCount.forEach(item => {
+                const days = item.days_remaining;
+                if (days < 0) {
+                    expiredCount++;
+                } else if (days <= 30) {
+                    days30Count++;
+                } else if (days <= 60) {
+                    days60Count++;
+                } else if (days <= 90) {
+                    days90Count++;
+                }
+            });
+        }
+        
+        const expiredCardElement = document.querySelector('.card-statistics .row .col-md-3:nth-child(1) .card-body h3');
+        const days30CardElement = document.querySelector('.card-statistics .row .col-md-3:nth-child(2) .card-body h3');
+        const days60CardElement = document.querySelector('.card-statistics .row .col-md-3:nth-child(3) .card-body h3');
+        const days90CardElement = document.querySelector('.card-statistics .row .col-md-3:nth-child(4) .card-body h3');
         
         if (expiredCardElement) expiredCardElement.textContent = expiredCount;
         if (days30CardElement) days30CardElement.textContent = days30Count;
         if (days60CardElement) days60CardElement.textContent = days60Count;
         if (days90CardElement) days90CardElement.textContent = days90Count;
         
-        console.log("卡片数字已更新");
+        console.log("卡片数字已更新:", { expiredCount, days30Count, days60Count, days90Count });
     };
     
-    // 等待DOM完全加载后执行
-    setTimeout(updateStatCards, 100);
-});
-
-// ...其他代码保持不变...
-</script>
-
-<!-- 在页面中明确定义generateEmailPreview函数和sendAlertEmails函数 -->
-<script>
-// 确保这个函数在页面中定义，作为备份
-window.generateEmailPreview = function() {
-    console.log("使用页面内定义的generateEmailPreview函数");
-    const emailRecipients = document.getElementById('emailRecipients');
-    const emailContent = document.getElementById('emailContent');
-    const sendEmailBtn = document.getElementById('sendEmailBtn');
-    
-    if (!emailRecipients || !emailContent) {
-        console.error("未找到邮件内容或收件人元素");
-        return;
-    }
-    
-    // 获取选项状态
-    const includeExpired = document.getElementById('includeExpiredItems').checked;
-    const include30Days = document.getElementById('include30DaysItems').checked;
-    const include60Days = document.getElementById('include60DaysItems').checked;
-    const include90Days = document.getElementById('include90DaysItems').checked;
-    
-    console.log("预警选项状态:", {
-        includeExpired,
-        include30Days,
-        include60Days,
-        include90Days
-    });
-    
-    // 确认allItems全局变量存在
-    if (typeof window.allItems === 'undefined' || !Array.isArray(window.allItems)) {
-        console.error("错误: allItems 未定义或不是数组");
-        emailContent.innerHTML = '<div class="alert alert-danger">数据加载错误，请刷新页面</div>';
-        if (sendEmailBtn) sendEmailBtn.disabled = true;
-        return;
-    }
-    
-    console.log("allItems共有", window.allItems.length, "个物品");
-    
-    // 根据条件筛选物品 - 确保在这里定义filteredItems变量
-    const filteredItems = [];
-    
-    window.allItems.forEach(item => {
-        const daysRemaining = item.days_remaining;
-        
-        if (daysRemaining < 0 && includeExpired) {
-            filteredItems.push(item);
-        } else if (daysRemaining >= 0 && daysRemaining <= 30 && include30Days) {
-            filteredItems.push(item);
-        } else if (daysRemaining > 30 && daysRemaining <= 60 && include60Days) {
-            filteredItems.push(item);
-        } else if (daysRemaining > 60 && daysRemaining <= 90 && include90Days) {
-            filteredItems.push(item);
-        }
-    });
-    
-    console.log(`筛选后的物品数量: ${filteredItems.length}`);
-    
-    // 如果没有符合条件的物品，显示提示
-    if (filteredItems.length === 0) {
-        emailContent.innerHTML = '<div class="alert alert-info">没有符合条件的预警物品</div>';
-        if (sendEmailBtn) sendEmailBtn.disabled = true;
-        return;
-    }
-    
-    // 按负责人分组
-    const itemsByResponsible = {};
-    filteredItems.forEach(item => {
-        if (!item.responsible_person) {
-            console.log("警告: 物品缺少负责人信息:", item.name);
-            return;
+    // 根据当前筛选条件过滤物品
+    const filterItems = function() {
+        console.log("开始根据筛选条件过滤物品...");
+        if (!window.allItems || !Array.isArray(window.allItems) || window.allItems.length === 0) {
+            console.warn("allItems数组不可用，无法筛选");
+            return [];
         }
         
-        if (!itemsByResponsible[item.responsible_person]) {
-            itemsByResponsible[item.responsible_person] = [];
-        }
-        itemsByResponsible[item.responsible_person].push(item);
-    });
-    
-    // 生成收件人列表
-    const recipients = new Set();
-    filteredItems.forEach(item => {
-        if (item.responsible_person) {
-            recipients.add(item.responsible_person);
-        }
-    });
-    // 使用正确的变量名
-    emailRecipients.innerHTML = Array.from(recipients).join(', ');
-    
-    // 生成邮件正文HTML - 这里直接创建HTML而不调用外部函数
-    let html = `
-        <div style="font-family: Arial, sans-serif;">
-            <h2 style="color: #dc3545;">消防安全管理系统 - 物资有效期预警通知</h2>
-            <p>尊敬的负责人：</p>
-            <p>您负责的以下物资即将到期或已经到期，请及时处理：</p>
-    `;
-    
-    // 为每个负责人生成表格内容
-    Object.keys(itemsByResponsible).forEach(responsible => {
-        const items = itemsByResponsible[responsible];
-        html += `
-            <div style="margin-top: 20px;">
-                <h3 style="margin-bottom: 10px; border-bottom: 1px solid #dee2e6; padding-bottom: 5px;">
-                    负责人：${responsible}
-                </h3>
-                <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
-                    <thead>
-                        <tr style="background-color: #f8f9fa;">
-                            <th style="border: 1px solid #dee2e6; padding: 8px; text-align: left;">物品名称</th>
-                            <th style="border: 1px solid #dee2e6; padding: 8px; text-align: left;">型号</th>
-                            <th style="border: 1px solid #dee2e6; padding: 8px; text-align: left;">区域</th>
-                            <th style="border: 1px solid #dee2e6; padding: 8px; text-align: left;">位置</th>
-                            <th style="border: 1px solid #dee2e6; padding: 8px; text-align: left;">到期日期</th>
-                            <th style="border: 1px solid #dee2e6; padding: 8px; text-align: left;">状态</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-        `;
+        // 获取筛选条件
+        const filterSource = document.getElementById('filter_source').value;
+        const filterLevel = document.getElementById('filter_level').value;
+        const filterName = document.getElementById('filter_name').value;
+        const filterResponsible = document.getElementById('filter_responsible').value;
         
-        // 为每个物品生成行
-        items.forEach(item => {
-            let statusText, statusColor;
-            
-            if (item.days_remaining < 0) {
-                statusText = "已到期";
-                statusColor = "#dc3545"; // 红色
-            } else if (item.days_remaining <= 30) {
-                statusText = "30天内到期";
-                statusColor = "#ffc107"; // 黄色
-            } else if (item.days_remaining <= 60) {
-                statusText = "60天内到期";
-                statusColor = "#17a2b8"; // 青色
-            } else {
-                statusText = "90天内到期";
-                statusColor = "#007bff"; // 蓝色
+        console.log("当前筛选条件:", { filterSource, filterLevel, filterName, filterResponsible });
+        
+        // 筛选物品
+        return window.allItems.filter(item => {
+            // 来源筛选
+            if (filterSource && item.source_table !== filterSource) {
+                return false;
             }
             
-            html += `
-                <tr>
-                    <td style="border: 1px solid #dee2e6; padding: 8px;">${item.name || ''}</td>
-                    <td style="border: 1px solid #dee2e6; padding: 8px;">${item.model || ''}</td>
-                    <td style="border: 1px solid #dee2e6; padding: 8px;">${item.area_name || ''}</td>
-                    <td style="border: 1px solid #dee2e6; padding: 8px;">${item.location || ''}</td>
-                    <td style="border: 1px solid #dee2e6; padding: 8px;">${item.expiry_date || ''}</td>
-                    <td style="border: 1px solid #dee2e6; padding: 8px; color: ${statusColor}; font-weight: bold;">
-                        ${statusText}
-                    </td>
-                </tr>
-            `;
+            // 预警级别筛选
+            if (filterLevel) {
+                const days = item.days_remaining;
+                if (filterLevel === 'expired' && days >= 0) {
+                    return false;
+                } else if (filterLevel === 'warning30' && (days < 0 || days > 30)) {
+                    return false;
+                } else if (filterLevel === 'warning60' && (days <= 30 || days > 60)) {
+                    return false;
+                } else if (filterLevel === 'warning90' && (days <= 60 || days > 90)) {
+                    return false;
+                }
+            }
+            
+            // 物品名称筛选
+            if (filterName && item.name !== filterName) {
+                return false;
+            }
+            
+            // 负责人筛选
+            if (filterResponsible && item.responsible_person !== filterResponsible) {
+                return false;
+            }
+            
+            // 通过所有筛选条件
+            return true;
         });
-        
-        html += `
-                    </tbody>
-                </table>
-            </div>
-        `;
-    });
-    
-    // 添加结尾和签名
-    html += `
-        <p>请及时对已到期和即将到期的物资进行更换或维护，确保消防安全。</p>
-        <p>谢谢您的配合！</p>
-        <p style="margin-top: 20px; color: #6c757d; font-size: 0.9em;">
-            消防安全管理系统<br>
-            发送时间：${new Date().toLocaleString()}
-        </p>
-    </div>`;
-    
-    emailContent.innerHTML = html;
-    
-    // 启用发送按钮
-    if (sendEmailBtn) sendEmailBtn.disabled = false;
-};
-
-// 添加备份的sendAlertEmails函数
-window.sendAlertEmails = function() {
-    console.log("使用页面内定义的sendAlertEmails函数");
-    // 获取邮件信息
-    const emailSubject = document.getElementById('emailSubject').value;
-    const emailContent = document.getElementById('emailContent').innerHTML;
-    
-    if (!emailContent) {
-        console.error("邮件内容为空，无法发送");
-        return;
-    }
-    
-    // 获取选项状态
-    const includeExpired = document.getElementById('includeExpiredItems').checked;
-    const include30Days = document.getElementById('include30DaysItems').checked;
-    const include60Days = document.getElementById('include60DaysItems').checked;
-    const include90Days = document.getElementById('include90DaysItems').checked;
-    
-    // 显示发送状态
-    const emailSendAlert = document.getElementById('emailSendAlert');
-    const emailSendMessage = document.getElementById('emailSendMessage');
-    const emailSendSpinner = document.getElementById('emailSendSpinner');
-    const sendEmailBtn = document.getElementById('sendEmailBtn');
-    
-    if (!emailSendAlert || !emailSendMessage || !emailSendSpinner) {
-        console.error("未找到邮件发送状态元素");
-        return;
-    }
-    
-    // 更新UI状态
-    emailSendAlert.classList.remove('d-none', 'alert-danger', 'alert-success');
-    emailSendAlert.classList.add('alert-info');
-    emailSendMessage.textContent = '正在发送邮件...';
-    emailSendSpinner.style.display = 'inline-block';
-    
-    if (sendEmailBtn) sendEmailBtn.disabled = true;
-    
-    // 创建要发送的数据 - 不依赖filteredItems
-    const postData = {
-        email_subject: emailSubject,
-        email_content: emailContent,
-        options: {
-            include_expired: includeExpired,
-            include_30days: include30Days,
-            include_60days: include60Days,
-            include_90days: include90Days
-        }
     };
     
-    console.log("发送AJAX请求到 /admin/send_expiry_alert_emails");
+    // 为所有筛选条件添加change事件监听器
+    const setupFilterListeners = function() {
+        const filterElements = [
+            document.getElementById('filter_source'),
+            document.getElementById('filter_level'),
+            document.getElementById('filter_name'),
+            document.getElementById('filter_responsible')
+        ];
+        
+        filterElements.forEach(element => {
+            if (element) {
+                element.addEventListener('change', function() {
+                    console.log(`筛选条件变化: ${element.id} = ${element.value}`);
+                    const filteredItems = filterItems();
+                    updateStatCards(filteredItems);
+                });
+            }
+        });
+        
+        console.log("筛选条件监听器已设置");
+    };
+    
+    // 设置筛选监听器
+    setupFilterListeners();
+    
+    // 初始化时，应用当前筛选条件，更新卡片
+    const initialFilteredItems = filterItems();
+    updateStatCards(initialFilteredItems);
+    
+    // 为表单提交添加事件监听器，但不阻止默认行为
+    const filterForm = document.querySelector('form[action*="expiry_alert"]');
+    if (filterForm) {
+        filterForm.addEventListener('submit', function() {
+            console.log("表单正在提交，自动刷新页面...");
+        });
+    }
+    
+    // 添加查看详情按钮点击事件处理
+    const setupViewDetailsButtons = function() {
+        const viewDetailsBtns = document.querySelectorAll('.view-details-btn');
+        
+        viewDetailsBtns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                // 从按钮data属性中获取数据
+                const itemId = this.getAttribute('data-item-id');
+                const sourceType = this.getAttribute('data-source-type');
+                const name = this.getAttribute('data-item-name');
+                const model = this.getAttribute('data-item-model');
+                const productionDate = this.getAttribute('data-production-date');
+                const expiryDate = this.getAttribute('data-expiry-date');
+                const daysRemaining = parseInt(this.getAttribute('data-days-remaining'));
+                const expiryYears = this.getAttribute('data-expiry-years');
+                const responsible = this.getAttribute('data-responsible-person');
+                const areaName = this.getAttribute('data-area-name');
+                const location = this.getAttribute('data-location');
+                const type = this.getAttribute('data-type');
+                
+                // 填充模态框内容
+                document.getElementById('modal-name').textContent = name || '未指定';
+                document.getElementById('modal-model').textContent = model || '未指定';
+                document.getElementById('modal-area').textContent = areaName || '未指定';
+                document.getElementById('modal-location').textContent = location || '未指定';
+                document.getElementById('modal-responsible').textContent = responsible || '未指定';
+                document.getElementById('modal-production-date').textContent = productionDate || '未知';
+                document.getElementById('modal-expiry-years').textContent = expiryYears || '未知';
+                document.getElementById('modal-expiry-date').textContent = expiryDate || '未知';
+                document.getElementById('modal-days-remaining').textContent = daysRemaining + ' 天';
+                document.getElementById('modal-type').textContent = type || '未知';
+                
+                // 设置预警级别和样式
+                const warningAlert = document.getElementById('modal-warning-alert');
+                const warningLevel = document.getElementById('modal-warning-level');
+                
+                if (daysRemaining < 0) {
+                    warningAlert.className = 'alert alert-danger mt-3';
+                    warningLevel.textContent = '已过期！请立即更换或处理。';
+                } else if (daysRemaining <= 30) {
+                    warningAlert.className = 'alert alert-warning mt-3';
+                    warningLevel.textContent = '30天内到期，请尽快处理。';
+                } else if (daysRemaining <= 60) {
+                    warningAlert.className = 'alert alert-info mt-3';
+                    warningLevel.textContent = '60天内到期，请注意安排更换。';
+                } else {
+                    warningAlert.className = 'alert alert-primary mt-3';
+                    warningLevel.textContent = '90天内到期，请提前准备。';
+                }
+                
+                // 显示模态框
+                const detailsModal = new bootstrap.Modal(document.getElementById('itemDetailsModal'));
+                detailsModal.show();
+            });
+        });
+        
+        console.log(`已为 ${viewDetailsBtns.length} 个查看详情按钮绑定点击事件`);
+    };
+    
+    // 调用函数来设置详情按钮
+    setupViewDetailsButtons();
+});
+</script>
+
+<!-- 修改模态框修复脚本，防止重复事件绑定 -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 获取邮件预览模态框元素
+    const emailPreviewModal = document.getElementById('emailPreviewModal');
+    
+    // 防止重复绑定的标记
+    if (!window.modalEventsBound) {
+        window.modalEventsBound = true;
+        
+        // 监听模态框隐藏事件
+        if (emailPreviewModal) {
+            emailPreviewModal.addEventListener('hidden.bs.modal', function() {
+                console.log('邮件模态框已关闭，执行清理...');
+                cleanupModalState();
+            });
+        }
+        
+        // 给"发送预警邮件"按钮添加点击监听，防止可能的问题
+        const sendAlertEmailBtn = document.getElementById('sendAlertEmailBtn');
+        if (sendAlertEmailBtn) {
+            // 先移除可能存在的所有事件处理程序
+            const newBtn = sendAlertEmailBtn.cloneNode(true);
+            sendAlertEmailBtn.parentNode.replaceChild(newBtn, sendAlertEmailBtn);
+            
+            // 添加单个点击处理程序
+            newBtn.addEventListener('click', function() {
+                console.log('发送预警邮件按钮被点击');
+            });
+        }
+    }
+});
+</script>
+
+<!-- 修改邮件预览和发送函数定义 -->
+<script>
+// 确保window.sendEmailInProgress全局状态变量帮助防止重复发送
+window.sendEmailInProgress = false;
+
+// 防止重复发送的sendPreviewEmail函数
+function sendPreviewEmail() {
+    // 如果已经在发送中，则退出
+    if (window.sendEmailInProgress) {
+        console.warn('邮件发送进行中，请勿重复操作');
+        return;
+    }
+    
+    // 设置发送中标志
+    window.sendEmailInProgress = true;
     
     // 获取CSRF令牌
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    
+    // 显示发送状态
+    console.log('邮件发送中...');
     
     // 发送AJAX请求
     fetch('/admin/send_expiry_alert_emails', {
@@ -873,58 +860,42 @@ window.sendAlertEmails = function() {
             'Content-Type': 'application/json',
             'X-CSRFToken': csrfToken
         },
-        body: JSON.stringify(postData)
+        body: JSON.stringify({})
     })
-    .then(response => {
-        console.log("收到服务器响应:", response.status);
-        if (!response.ok) {
-            throw new Error(`服务器返回错误状态码: ${response.status}`);
-        }
-        return response.json();
-    })
+    .then(response => response.json())
     .then(data => {
-        console.log("邮件发送结果:", data);
-        
-        // 更新UI状态
-        emailSendSpinner.style.display = 'none';
-        if (sendEmailBtn) sendEmailBtn.disabled = false;
-        
-        if (data.success) {
-            // 发送成功
-            emailSendAlert.classList.remove('alert-info');
-            emailSendAlert.classList.add('alert-success');
-            
-            if (data.recipients_count > 0) {
-                emailSendMessage.textContent = `邮件发送成功！已发送给 ${data.recipients_count} 位接收者。`;
-            } else {
-                emailSendMessage.textContent = '没有找到有效的收件人邮箱地址。请确保负责人信息中有正确的邮箱地址。';
-            }
-            
-            // 3秒后自动关闭模态框
-            setTimeout(() => {
-                const modal = bootstrap.Modal.getInstance(document.getElementById('emailPreviewModal'));
-                if (modal) modal.hide();
-            }, 3000);
-        } else {
-            // 发送失败
-            emailSendAlert.classList.remove('alert-info');
-            emailSendAlert.classList.add('alert-danger');
-            emailSendMessage.textContent = `邮件发送失败：${data.error || '未知错误'}`;
-        }
+        console.log('邮件发送成功:', data);
     })
     .catch(error => {
-        console.error("邮件发送请求错误:", error);
-        
-        // 更新UI状态
-        emailSendSpinner.style.display = 'none';
-        if (sendEmailBtn) sendEmailBtn.disabled = false;
-        emailSendAlert.classList.remove('alert-info');
-        emailSendAlert.classList.add('alert-danger');
-        emailSendMessage.textContent = `发生错误：${error.message}`;
+        console.error('邮件发送失败:', error);
+    })
+    .finally(() => {
+        // 重置发送状态
+        window.sendEmailInProgress = false;
     });
-};
+}
 </script>
 
-<!-- 确保引入外部JS文件的标签是独立的，且不在其他脚本标签内 -->
-<script src="{{ url_for('static', filename='js/expiry_alert.js') }}?v={{ cache_buster }}"></script>
+<!-- 添加CSRF处理脚本 -->
+<script src="{{ url_for('static', filename='js/csrf-handler.js') }}?v={{ cache_buster }}"></script>
+<!-- 核心功能脚本，但阻止自动初始化 -->
+<script src="{{ url_for('static', filename='js/expiry_alert.js') }}?v={{ cache_buster }}&noInit=true"></script>
+<!-- 邮件发送修复脚本，同样阻止自动发送 -->
+<script src="{{ url_for('static', filename='js/mail-sender-fix.js') }}?v={{ cache_buster }}&noSend=true"></script>
+
+<!-- 添加初始化脚本，确保只执行一次初始化 -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 确保只初始化一次
+    if (typeof window.emailModuleInitialized === 'undefined') {
+        window.emailModuleInitialized = true;
+        
+        // 如果外部JS提供了初始化函数则调用它
+        if (typeof initEmailAlertModule === 'function') {
+            console.log('调用外部邮件模块初始化函数');
+            initEmailAlertModule();
+        }
+    }
+});
+</script>
 {% endblock %}

@@ -233,7 +233,7 @@
                                 <li class="page-item disabled">
                                     <span class="page-link">...</span>
                                 </li>
-                            {% endif %}
+                                {% endif %}
                         {% endfor %}
                         
                         <!-- 下一页按钮 -->
@@ -273,7 +273,7 @@
                 <h5 class="modal-title" id="addExpiryRuleModalLabel">添加有效期规则</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
             </div>
-            <form method="POST" action="{{ url_for('admin.add_expiry_rule') }}">
+            <form method="POST" action="{{ url_for('admin.add_expiry_rule') }}"  data-form-type="add">
                 <!-- 使用正确的CSRF令牌调用方式 -->
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="modal-body">
@@ -384,7 +384,7 @@
                 <h5 class="modal-title" id="editModalLabel-{{ item.id }}">编辑有效期规则</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
             </div>
-            <form method="POST" action="{{ url_for('admin.edit_expiry_rule', rule_id=item.id) }}" class="edit-expiry-form">
+            <form method="POST" action="{{ url_for('admin.edit_expiry_rule', rule_id=item.id) }}" class="edit-expiry-form" data-rule-id="{{ item.id }}">
                 <!-- 使用正确的CSRF令牌调用方式 -->
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 
@@ -392,16 +392,22 @@
                 <div class="modal-body">
                     <div class="form-group mb-3">
                         <label for="item_category_{{ item.id }}" class="form-label">物品类别 <span class="text-danger">*</span></label>
-                        <select class="form-select" id="item_category_{{ item.id }}" name="item_category" required>
+                        <select class="form-select" id="item_category_{{ item.id }}" disabled>
                             <option value="防护穿戴" {% if item.item_category == '防护穿戴' %}selected{% endif %}>防护穿戴</option>
                             <option value="灭火使用" {% if item.item_category == '灭火使用' %}selected{% endif %}>灭火使用</option>
                             <option value="应急疏散" {% if item.item_category == '应急疏散' %}selected{% endif %}>应急疏散</option>
                         </select>
+                        <!-- 添加隐藏字段保存物品类别的值 -->
+                        <input type="hidden" name="item_category" value="{{ item.item_category }}">
+                        <!-- 添加注释说明字段为何只读 -->
+                        <small class="text-muted">物品类别不可修改，避免引用混乱</small>
                     </div>
                     
                     <div class="form-group mb-3">
                         <label for="item_name_{{ item.id }}" class="form-label">物品名称 <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="item_name_{{ item.id }}" name="item_name" required value="{{ item.item_name }}">
+                        <input type="text" class="form-control" id="item_name_{{ item.id }}" name="item_name" required value="{{ item.item_name }}" readonly>
+                        <!-- 添加注释说明字段为何只读 -->
+                        <small class="text-muted">物品名称不可修改，避免引用混乱</small>
                     </div>
                     
                     <div class="row mb-3">
@@ -902,4 +908,5 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 </script>
+<script src="{{ url_for('static', filename='js/expiry_rule_validation.js') }}?v={{ cache_buster }}"></script>
 {% endblock %}

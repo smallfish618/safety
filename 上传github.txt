@@ -183,3 +183,18 @@ git push origin feature-name
 
 以上就是继续开发并上传新版本到GitHub的基本流程和具体操作步骤。
 
+
+避免未来冲突的Git工作流
+# 每次开始工作前先拉取最新代码
+git pull origin main
+
+# 完成工作后
+git add .
+git commit -m "您的更改描述"
+git pull origin main  # 再次拉取，确保与远程同步
+git push origin main
+
+
+# 方法1: 使用SSH而不是HTTPS (如果您有SSH密钥设置)
+git remote set-url origin git@github.com:smallfish618/safety.git
+git push origin main
