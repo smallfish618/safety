@@ -1,0 +1,1147 @@
+{% extends 'base.html' %}
+
+{% block title %}消防器材批量管理{% endblock %}
+
+{% block head %}
+{{ super() }}
+<meta name="csrf-token" content="{{ csrf_token() }}">
+{% endblock %}
+
+{% block styles %}
+{{ super() }}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.3/font/bootstrap-icons.css">
+<style>
+    .table-responsive {
+        min-height: 300px;
+    }
+    .action-btn {
+        margin-right: 5px;
+    }
+    .filter-section {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+    }
+    .badge {
+        font-size: 0.9em;
+    }
+    .form-group {
+        margin-bottom: 15px;
+    }
+    .hidden {
+        display: none;
+    }
+    #loadingIndicator {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(255,255,255,0.8);
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 0 10px rgba(0,0,0,0.2);
+        z-index: 9999;
+    }
+    .batch-action-btn {
+        margin-right: 10px;
+        margin-bottom: 10px;
+    }
+    .edit-field {
+        width: 100%;
+        padding: 5px;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+    }
+    .editable {
+        position: relative;
+        padding: 0 !important;
+    }
+    
+    .editable input, .editable select {
+        width: 100%;
+        height: 100%;
+        border: 1px solid #4e73df;
+        padding: 5px;
+    }
+    
+    .editable:after {
+        content: '\f303';
+        font-family: 'bootstrap-icons';
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        font-size: 10px;
+        color: #4e73df;
+        opacity: 0.7;
+    }
+    
+    .modified {
+        background-color: #e8f4f8 !important;
+    }
+    
+    tr.selected {
+        background-color: #f0f8ff !important;
+    }
+    
+    .readonly-field {
+        background-color: #f8f9fa;
+        cursor: not-allowed;
+    }
+    #changesTable .table-info {
+        background-color: #e9f2f9;
+    }
+    
+    #changesTable td {
+        vertical-align: middle;
+    }
+    
+    #changesTable .text-primary {
+        font-weight: 500;
+    }
+    
+    #confirmChangesModal .modal-body {
+        max-height: 500px;
+        overflow-y: auto;
+    }
+    
+    #changesTable hr {
+        margin: 0;
+        border-top: 1px dashed #dee2e6;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mt-4 mb-4">消防器材批量管理</h1>
+    
+    <!-- 筛选区域 -->
+    <div class="row filter-section">
+        <div class="col-md-3">
+            <div class="form-group">
+                <label for="searchInput"><i class="bi bi-search"></i> 搜索：</label>
+                <input type="text" class="form-control" id="searchInput" placeholder="输入器材名称、型号、区域等">
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group">
+                <label for="categoryFilter"><i class="bi bi-filter"></i> 按类型筛选：</label>
+                <select class="form-control" id="categoryFilter">
+                    <option value="">-- 全部类型 --</option>
+                    {% for category in categories %}
+                    <option value="{{ category }}">{{ category }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group">
+                <label for="areaFilter"><i class="bi bi-geo-alt"></i> 按区域筛选：</label>
+                <select class="form-control" id="areaFilter">
+                    <option value="">-- 全部区域 --</option>
+                    {% for area in area_names %}
+                    <option value="{{ area }}">{{ area }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="form-group">
+                <label>&nbsp;</label>
+                <button class="btn btn-primary form-control" id="searchButton">
+                    <i class="bi bi-search"></i> 搜索
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 每页显示记录数选择 -->
+    <div class="row mb-3">
+        <div class="col-md-3">
+            <div class="dataTables_length">
+                <label class="d-flex align-items-center">
+                    <span class="me-2">每页显示</span>
+                    <select id="per-page-select" class="form-select form-select-sm mx-2" style="width: auto;" aria-label="每页记录数">
+                        <option value="15" selected>15</option>
+                        <option value="25">25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
+                    <span class="ms-1">条记录</span>
+                </label>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 批量操作按钮 -->
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <button class="btn btn-success batch-action-btn" data-bs-toggle="modal" data-bs-target="#importModal">
+                <i class="bi bi-file-earmark-excel"></i> 批量导入
+            </button>
+            <button class="btn btn-primary batch-action-btn" id="toggleEditModeBtn" disabled>
+                <i class="bi bi-pencil"></i> 开始编辑
+            </button>
+            <button class="btn btn-success batch-action-btn" id="saveChangesBtn" style="display:none;">
+                <i class="bi bi-check-circle"></i> 保存修改
+            </button>
+            <button class="btn btn-secondary batch-action-btn" id="cancelEditBtn" style="display:none;">
+                <i class="bi bi-x-circle"></i> 取消编辑
+            </button>
+            <button class="btn btn-danger batch-action-btn" id="batchDeleteBtn" disabled>
+                <i class="bi bi-trash"></i> 批量删除
+            </button>
+            <span class="ms-3" id="selectedCount">已选择: 0项</span>
+            <span class="ms-3 text-success" id="editModeIndicator" style="display:none;">
+                <i class="bi bi-pencil-square"></i> 编辑模式
+            </span>
+            <span class="ms-3 text-info" id="editFieldsInfo" style="display:none;">
+                <i class="bi bi-info-circle"></i> 只能编辑器材名称、品牌型号、重量、数量、生产日期和备注字段
+            </span>
+        </div>
+    </div>
+    
+    <!-- 数据表格 -->
+    <div class="table-responsive">
+        <table class="table table-striped table-bordered" id="equipmentTable">
+            <thead class="table-dark">
+                <tr>
+                    <th width="40px">
+                        <input type="checkbox" id="selectAll" class="form-check-input">
+                    </th>
+                    <th>区域名称</th>
+                    <th>楼层</th>
+                    <th>安装位置</th>
+                    <th>设备类型</th>
+                    <th>器材名称</th>
+                    <th>品牌型号</th>
+                    <th>重量(kg)</th>
+                    <th>数量</th>
+                    {% if has_production_date %}
+                    <th>生产日期</th>
+                    {% endif %}
+                    <th>备注</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- 数据将通过JavaScript加载 -->
+                <tr>
+                    <td colspan="10" class="text-center">加载中...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- 分页控件 -->
+    <div class="row mt-3">
+        <div class="col-md-6">
+            <div class="dataTables_info" id="pagination-info">
+                显示 <span id="start-record">1</span> 到 <span id="end-record">15</span> 条，共 <span id="total-records">0</span> 条记录
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="dataTables_paginate paging_simple_numbers">
+                <ul class="pagination justify-content-end" id="pagination">
+                    <li class="page-item disabled" id="first-page">
+                        <a class="page-link" href="#" tabindex="-1" aria-disabled="true">
+                            <i class="bi bi-chevron-double-left"></i> 第一页
+                        </a>
+                    </li>
+                    <li class="page-item disabled" id="prev-page">
+                        <a class="page-link" href="#" tabindex="-1" aria-disabled="true">
+                            <i class="bi bi-chevron-left"></i> 上一页
+                        </a>
+                    </li>
+                    <!-- 页码将动态生成 -->
+                    <li class="page-item" id="next-page">
+                        <a class="page-link" href="#">下一页 <i class="bi bi-chevron-right"></i></a>
+                    </li>
+                    <li class="page-item" id="last-page">
+                        <a class="page-link" href="#">最后页 <i class="bi bi-chevron-double-right"></i></a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 批量修改模态窗口 -->
+<div class="modal fade" id="batchEditModal" tabindex="-1" aria-labelledby="batchEditModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="batchEditModalLabel">批量修改消防器材</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> 提示：只填写需要修改的字段，留空的字段将保持不变。
+                </p>
+                <form id="batchEditForm">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_equipment_type" class="form-label">器材名称</label>
+                            <input type="text" class="form-control" id="edit_equipment_type">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_model" class="form-label">品牌型号</label>
+                            <input type="text" class="form-control" id="edit_model">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_weight" class="form-label">重量(kg)</label>
+                            <input type="number" class="form-control" id="edit_weight" step="0.01">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_quantity" class="form-label">数量</label>
+                            <input type="number" class="form-control" id="edit_quantity" min="1">
+                        </div>
+                    </div>
+                    {% if has_production_date %}
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_production_date" class="form-label">生产日期</label>
+                            <input type="date" class="form-control" id="edit_production_date">
+                        </div>
+                    </div>
+                    {% endif %}
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="confirmBatchEdit">确认修改</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 批量删除确认模态窗口 -->
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteConfirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteConfirmModalLabel">确认删除</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-danger">
+                    <i class="bi bi-exclamation-triangle"></i> 警告：您即将删除 <span id="deleteCount">0</span> 条记录，此操作不可撤销！
+                </p>
+                <p>确认要继续吗？</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" id="confirmDelete">确认删除</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 批量导入模态窗口 -->
+<div class="modal fade" id="importModal" tabindex="-1" aria-labelledby="importModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="importModalLabel">批量导入消防器材</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>请先下载Excel模板，填写完成后上传：</p>
+                <a href="{{ url_for('equipment_batch.download_template') }}" class="btn btn-success mb-3">
+                    <i class="bi bi-download"></i> 下载Excel模板
+                </a>
+                <form action="{{ url_for('equipment_batch.upload_excel') }}" method="post" enctype="multipart/form-data">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <label for="excelFile" class="form-label">选择Excel文件</label>
+                        <input class="form-control" type="file" id="excelFile" name="file" accept=".xlsx,.xls">
+                    </div>
+                    <button type="submit" class="btn btn-primary">上传并预览</button>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 添加确认修改模态框 -->
+<div class="modal fade" id="confirmChangesModal" tabindex="-1" aria-labelledby="confirmChangesModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="confirmChangesModalLabel">确认修改内容</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> 请确认以下修改内容：
+                </p>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-sm" id="changesTable">
+                        <thead>
+                            <tr class="table-dark">
+                                <th width="20%">器材名称</th>
+                                <th width="25%">字段</th>
+                                <th width="27%">原始值</th>
+                                <th width="28%">新值</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- 修改内容将在这里动态生成 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="confirmSaveChanges">确认保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 加载指示器 -->
+<div id="loadingIndicator" class="hidden">
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+    <div class="mt-2">处理中，请稍候...</div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    // 全局变量
+    let equipmentData = [];
+    let selectedIds = [];
+    let currentPage = 1;
+    let perPage = 15;
+    let totalPages = 1;
+    let totalRecords = 0;
+    let isEditMode = false;
+    let changesMap = {}; // 存储修改的内容，格式: {设备ID: {字段: 新值}}
+    let originalData = {}; // 存储原始数据，用于比较和撤销
+    
+    // 页面加载完成后执行
+    document.addEventListener('DOMContentLoaded', function() {
+        // 加载数据
+        loadEquipmentData();
+        
+        // 绑定搜索按钮点击事件
+        document.getElementById('searchButton').addEventListener('click', function() {
+            currentPage = 1; // 搜索时重置为第一页
+            loadEquipmentData();
+        });
+        
+        // 绑定搜索框回车事件
+        document.getElementById('searchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                currentPage = 1;
+                loadEquipmentData();
+            }
+        });
+        
+        // 绑定每页记录数选择事件
+        document.getElementById('per-page-select').addEventListener('change', function() {
+            perPage = parseInt(this.value);
+            currentPage = 1; // 重置为第一页
+            loadEquipmentData();
+        });
+        
+        // 绑定全选复选框事件
+        document.getElementById('selectAll').addEventListener('change', function() {
+            const checkboxes = document.querySelectorAll('input[name="selectItem"]');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = this.checked;
+            });
+            updateSelectedItems();
+        });
+        
+        // 绑定批量删除按钮事件
+        document.getElementById('batchDeleteBtn').addEventListener('click', function() {
+            document.getElementById('deleteCount').innerText = selectedIds.length;
+            const deleteModal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+            deleteModal.show();
+        });
+        
+        // 绑定确认删除按钮事件
+        document.getElementById('confirmDelete').addEventListener('click', function() {
+            batchDeleteEquipment();
+        });
+        
+        // 绑定分页导航事件
+        document.getElementById('first-page').querySelector('a').addEventListener('click', function(e) {
+            e.preventDefault();
+            if (currentPage > 1) {
+                currentPage = 1;
+                loadEquipmentData();
+            }
+        });
+        
+        document.getElementById('prev-page').querySelector('a').addEventListener('click', function(e) {
+            e.preventDefault();
+            if (currentPage > 1) {
+                currentPage--;
+                loadEquipmentData();
+            }
+        });
+        
+        document.getElementById('next-page').querySelector('a').addEventListener('click', function(e) {
+            e.preventDefault();
+            if (currentPage < totalPages) {
+                currentPage++;
+                loadEquipmentData();
+            }
+        });
+        
+        document.getElementById('last-page').querySelector('a').addEventListener('click', function(e) {
+            e.preventDefault();
+            if (currentPage < totalPages) {
+                currentPage = totalPages;
+                loadEquipmentData();
+            }
+        });
+        
+        // 绑定开始编辑按钮事件
+        document.getElementById('toggleEditModeBtn').addEventListener('click', toggleEditMode);
+        
+        // 绑定保存修改按钮事件
+        document.getElementById('saveChangesBtn').addEventListener('click', showConfirmChanges);
+        
+        // 绑定取消编辑按钮事件
+        document.getElementById('cancelEditBtn').addEventListener('click', cancelEdit);
+        
+        // 绑定确认保存按钮事件
+        document.getElementById('confirmSaveChanges').addEventListener('click', saveChanges);
+    });
+    
+    // 加载设备数据
+    function loadEquipmentData() {
+        const search = document.getElementById('searchInput').value;
+        const category = document.getElementById('categoryFilter').value;
+        const area = document.getElementById('areaFilter').value;
+        
+        // 显示加载指示器
+        document.getElementById('loadingIndicator').classList.remove('hidden');
+        
+        // 添加时间戳防止缓存
+        const timestamp = new Date().getTime();
+        
+        fetch(`/equipment-batch/api/equipment-data?search=${encodeURIComponent(search)}&category=${encodeURIComponent(category)}&area=${encodeURIComponent(area)}&page=${currentPage}&per_page=${perPage}&_=${timestamp}`)
+            .then(response => response.json())
+            .then(data => {
+                equipmentData = data.data;
+                
+                // 获取分页信息
+                if (data.pagination) {
+                    totalPages = data.pagination.pages;
+                    totalRecords = data.pagination.total;
+                    currentPage = data.pagination.page;
+                }
+                
+                // 渲染表格和分页控件
+                renderEquipmentTable();
+                renderPagination();
+                
+                // 隐藏加载指示器
+                document.getElementById('loadingIndicator').classList.add('hidden');
+            })
+            .catch(error => {
+                console.error('获取数据失败:', error);
+                // 隐藏加载指示器
+                document.getElementById('loadingIndicator').classList.add('hidden');
+                alert('获取数据失败，请稍后再试');
+            });
+    }
+    
+    // 渲染设备表格
+    function renderEquipmentTable() {
+        const tableBody = document.querySelector('#equipmentTable tbody');
+        tableBody.innerHTML = '';
+        
+        if (equipmentData.length === 0) {
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="11" class="text-center">没有找到匹配的记录</td>
+                </tr>
+            `;
+            return;
+        }
+        
+        equipmentData.forEach(equipment => {
+            const row = document.createElement('tr');
+            
+            // 构建行HTML - 重新排序字段
+            let html = `
+                <td>
+                    <input type="checkbox" name="selectItem" value="${equipment.id}" class="form-check-input select-checkbox">
+                </td>
+                <td>${equipment.area_name || ''}</td>
+                <td class="readonly-field">${equipment.installation_floor || ''}</td>
+                <td class="readonly-field">${equipment.installation_location || ''}</td>
+                <td class="readonly-field">${equipment.equipment_type || ''}</td>
+                <td>${equipment.equipment_name || ''}</td>
+                <td>${equipment.model || ''}</td>
+                <td>${equipment.weight !== null ? equipment.weight : ''}</td>
+                <td>${equipment.quantity !== null ? equipment.quantity : ''}</td>
+            `;
+            
+            // 如果有生产日期字段
+            if ('production_date' in equipment) {
+                html += `<td>${equipment.production_date || ''}</td>`;
+            }
+            
+            html += `<td>${equipment.remark || ''}</td>`;
+            
+            row.innerHTML = html;
+            tableBody.appendChild(row);
+        });
+        
+        // 重新添加复选框事件
+        document.querySelectorAll('input[name="selectItem"]').forEach(checkbox => {
+            checkbox.addEventListener('change', updateSelectedItems);
+        });
+        
+        // 清空选择
+        selectedIds = [];
+        document.getElementById('selectAll').checked = false;
+        updateSelectedItems();
+    }
+    
+    // 渲染分页控件
+    function renderPagination() {
+        const pagination = document.getElementById('pagination');
+        const firstPage = document.getElementById('first-page');
+        const prevPage = document.getElementById('prev-page');
+        const nextPage = document.getElementById('next-page');
+        const lastPage = document.getElementById('last-page');
+        
+        // 更新分页信息
+        const startRecord = totalRecords > 0 ? (currentPage - 1) * perPage + 1 : 0;
+        const endRecord = Math.min(currentPage * perPage, totalRecords);
+        document.getElementById('start-record').textContent = startRecord;
+        document.getElementById('end-record').textContent = endRecord;
+        document.getElementById('total-records').textContent = totalRecords;
+        
+        // 清除现有的页码
+        const pageItems = pagination.querySelectorAll('.page-item:not(#first-page):not(#prev-page):not(#next-page):not(#last-page)');
+        pageItems.forEach(item => item.remove());
+        
+        // 禁用或启用第一页和上一页按钮
+        if (currentPage <= 1) {
+            firstPage.classList.add('disabled');
+            prevPage.classList.add('disabled');
+        } else {
+            firstPage.classList.remove('disabled');
+            prevPage.classList.remove('disabled');
+        }
+        
+        // 禁用或启用下一页和最后一页按钮
+        if (currentPage >= totalPages) {
+            nextPage.classList.add('disabled');
+            lastPage.classList.add('disabled');
+        } else {
+            nextPage.classList.remove('disabled');
+            lastPage.classList.remove('disabled');
+        }
+        
+        // 计算要显示的页码范围
+        let startPage = Math.max(1, currentPage - 2);
+        let endPage = Math.min(totalPages, startPage + 4);
+        
+        // 调整起始页，确保始终显示5个页码（如果有足够的页）
+        if (endPage - startPage < 4 && startPage > 1) {
+            startPage = Math.max(1, endPage - 4);
+        }
+        
+        // 添加页码
+        for (let i = startPage; i <= endPage; i++) {
+            const pageItem = document.createElement('li');
+            pageItem.className = 'page-item' + (i === currentPage ? ' active' : '');
+            
+            const pageLink = document.createElement('a');
+            pageLink.className = 'page-link';
+            pageLink.href = '#';
+            pageLink.textContent = i;
+            
+            // 添加点击事件
+            pageLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                currentPage = i;
+                loadEquipmentData();
+            });
+            
+            pageItem.appendChild(pageLink);
+            pagination.insertBefore(pageItem, nextPage);
+        }
+    }
+    
+    // 更新选中的项目
+    function updateSelectedItems() {
+        selectedIds = [];
+        const checkboxes = document.querySelectorAll('input[name="selectItem"]:checked');
+        checkboxes.forEach(checkbox => {
+            selectedIds.push(parseInt(checkbox.value));
+            
+            // 高亮选中的行
+            const row = checkbox.closest('tr');
+            if (checkbox.checked) {
+                row.classList.add('selected');
+            } else {
+                row.classList.remove('selected');
+            }
+        });
+        
+        // 更新选中计数
+        document.getElementById('selectedCount').innerText = `已选择: ${selectedIds.length}项`;
+        
+        // 更新批量操作按钮状态
+        document.getElementById('toggleEditModeBtn').disabled = selectedIds.length === 0;
+        document.getElementById('batchDeleteBtn').disabled = selectedIds.length === 0 || isEditMode;
+    }
+    
+    // 切换编辑模式
+    function toggleEditMode() {
+        isEditMode = !isEditMode;
+        
+        if (isEditMode) {
+            // 进入编辑模式
+            document.getElementById('toggleEditModeBtn').style.display = 'none';
+            document.getElementById('saveChangesBtn').style.display = 'inline-block';
+            document.getElementById('cancelEditBtn').style.display = 'inline-block';
+            document.getElementById('batchDeleteBtn').disabled = true;
+            document.getElementById('editModeIndicator').style.display = 'inline';
+            document.getElementById('editFieldsInfo').style.display = 'inline'; // 显示字段提示
+            
+            // 保存原始数据以便撤销
+            originalData = {};
+            selectedIds.forEach(id => {
+                const equipment = equipmentData.find(e => e.id === id);
+                if (equipment) {
+                    originalData[id] = {...equipment};
+                }
+            });
+            
+            // 使选中行的单元格可编辑
+            makeSelectedRowsEditable();
+        } else {
+            // 退出编辑模式
+            document.getElementById('toggleEditModeBtn').style.display = 'inline-block';
+            document.getElementById('saveChangesBtn').style.display = 'none';
+            document.getElementById('cancelEditBtn').style.display = 'none';
+            document.getElementById('batchDeleteBtn').disabled = selectedIds.length === 0;
+            document.getElementById('editModeIndicator').style.display = 'none';
+            document.getElementById('editFieldsInfo').style.display = 'none'; // 隐藏字段提示
+            
+            // 恢复单元格不可编辑状态
+            revertEditable();
+        }
+    }
+    
+    // 使选中行的单元格变为可编辑状态
+    function makeSelectedRowsEditable() {
+        const checkboxes = document.querySelectorAll('input[name="selectItem"]:checked');
+        checkboxes.forEach(checkbox => {
+            const row = checkbox.closest('tr');
+            const equipmentId = parseInt(checkbox.value);
+            
+
+            // 器材名称(索引5)可编辑
+            setEditableCell(row, 5, 'equipment_name', equipmentId);
+            
+            // 其他可编辑字段
+            setEditableCell(row, 6, 'model', equipmentId); // 品牌型号
+            setEditableCell(row, 7, 'weight', equipmentId); // 重量
+            setEditableCell(row, 8, 'quantity', equipmentId); // 数量
+            
+            // 如果有生产日期，则也设为可编辑
+            const hasProductionDate = document.querySelector('th:nth-child(10)').textContent.includes('生产日期');
+            if (hasProductionDate) {
+                setEditableCell(row, 9, 'production_date', equipmentId);
+            }
+            
+            // 备注可编辑(最后一列)
+            setEditableCell(row, row.cells.length - 1, 'remark', equipmentId);
+        });
+    }
+    
+    // 设置单元格为可编辑状态
+    function setEditableCell(row, cellIndex, fieldName, equipmentId) {
+        const cell = row.cells[cellIndex];
+        const originalValue = cell.innerText.trim();
+        let inputElement;
+        
+        // 根据字段类型创建不同的输入控件
+        if (fieldName === 'weight') {
+            inputElement = document.createElement('input');
+            inputElement.type = 'number';
+            inputElement.step = '0.01';
+            inputElement.value = originalValue;
+        } else if (fieldName === 'quantity') {
+            inputElement = document.createElement('input');
+            inputElement.type = 'number';
+            inputElement.step = '1';
+            inputElement.min = '1';
+            inputElement.value = originalValue;
+        } else if (fieldName === 'production_date') {
+            inputElement = document.createElement('input');
+            inputElement.type = 'date';
+            if (originalValue) {
+                const dateParts = originalValue.split('-');
+                if (dateParts.length === 3) {
+                    inputElement.value = originalValue;
+                }
+            }
+        } else {
+            inputElement = document.createElement('input');
+            inputElement.type = 'text';
+            inputElement.value = originalValue;
+        }
+        
+        // 设置通用属性
+        inputElement.className = 'form-control form-control-sm';
+        inputElement.dataset.field = fieldName;
+        inputElement.dataset.equipmentId = equipmentId;
+        inputElement.dataset.originalValue = originalValue;
+        
+        // 添加修改事件
+        inputElement.addEventListener('change', function(e) {
+            const newValue = e.target.value;
+            const originalValue = e.target.dataset.originalValue;
+            
+            if (newValue !== originalValue) {
+                // 如果有变化，标记为已修改
+                cell.classList.add('modified');
+                
+                // 记录修改
+                if (!changesMap[equipmentId]) {
+                    changesMap[equipmentId] = {};
+                }
+                changesMap[equipmentId][fieldName] = newValue;
+            } else {
+                // 如果恢复原值，移除已修改标记
+                cell.classList.remove('modified');
+                
+                // 移除修改记录
+                if (changesMap[equipmentId] && changesMap[equipmentId][fieldName]) {
+                    delete changesMap[equipmentId][fieldName];
+                    
+                    // 如果该设备没有其他修改，则完全移除
+                    if (Object.keys(changesMap[equipmentId]).length === 0) {
+                        delete changesMap[equipmentId];
+                    }
+                }
+            }
+        });
+        
+        // 清空单元格并添加输入元素
+        cell.innerHTML = '';
+        cell.classList.add('editable');
+        cell.appendChild(inputElement);
+    }
+    
+    // 恢复单元格不可编辑状态
+    function revertEditable() {
+        // 恢复所有已编辑的单元格
+        document.querySelectorAll('.editable').forEach(cell => {
+            const input = cell.querySelector('input, select');
+            if (input) {
+                cell.innerHTML = input.value;
+                cell.classList.remove('editable');
+                cell.classList.remove('modified');
+            }
+        });
+        
+        // 清空修改记录
+        changesMap = {};
+    }
+    
+    // 取消编辑，恢复原始数据
+    function cancelEdit() {
+        // 恢复所有已编辑的单元格为原始值
+        document.querySelectorAll('.editable').forEach(cell => {
+            const input = cell.querySelector('input, select');
+            if (input) {
+                const originalValue = input.dataset.originalValue;
+                cell.innerHTML = originalValue || '';
+                cell.classList.remove('editable');
+                cell.classList.remove('modified');
+            }
+        });
+        
+        // 清空修改记录
+        changesMap = {};
+        
+        // 退出编辑模式
+        toggleEditMode();
+    }
+    
+    // 显示修改确认对话框
+    function showConfirmChanges() {
+        // 如果没有修改，提示用户
+        if (Object.keys(changesMap).length === 0) {
+            alert('没有检测到任何修改');
+            return;
+        }
+        
+        // 清空之前的内容
+        const tableBody = document.querySelector('#changesTable tbody');
+        tableBody.innerHTML = '';
+        
+        // 添加修改记录
+        let currentEquipmentId = null;
+        let isFirst = true;
+        
+        for (const equipmentId in changesMap) {
+            const equipment = equipmentData.find(e => e.id == equipmentId);
+            if (!equipment) continue;
+            
+            let isFirstRowOfEquipment = true;
+            
+            // 为每个设备添加一个设备标题行
+            const headerRow = document.createElement('tr');
+            headerRow.className = 'table-info';
+            headerRow.innerHTML = `
+                <td colspan="4" class="fw-bold">
+                    <i class="bi bi-tools"></i> ${equipment.equipment_type} (ID: ${equipmentId})
+                </td>
+            `;
+            tableBody.appendChild(headerRow);
+            
+            for (const field in changesMap[equipmentId]) {
+                const newValue = changesMap[equipmentId][field];
+                const originalValue = originalData[equipmentId][field] || '';
+                
+                // 创建行
+                const row = document.createElement('tr');
+                
+                // 设置行样式
+                if (isFirstRowOfEquipment) {
+                    isFirstRowOfEquipment = false;
+                }
+                
+                // 添加单元格
+                row.innerHTML = `
+                    <td>${isFirstRowOfEquipment ? equipment.equipment_type : ''}</td>
+                    <td class="fw-semibold">${getFieldDisplayName(field)}</td>
+                    <td>${originalValue}</td>
+                    <td class="text-primary">${newValue}</td>
+                `;
+                
+                // 添加到表格
+                tableBody.appendChild(row);
+            }
+            
+            // 在不同设备之间添加分隔行
+            const separatorRow = document.createElement('tr');
+            separatorRow.innerHTML = '<td colspan="4" class="p-0"><hr class="my-1"></td>';
+            tableBody.appendChild(separatorRow);
+        }
+        
+        // 如果有分隔行，移除最后一个
+        const rows = tableBody.querySelectorAll('tr');
+        if (rows.length > 0) {
+            const lastRow = rows[rows.length - 1];
+            if (lastRow.querySelector('hr')) {
+                tableBody.removeChild(lastRow);
+            }
+        }
+        
+        // 显示模态框
+        const confirmModal = new bootstrap.Modal(document.getElementById('confirmChangesModal'));
+        confirmModal.show();
+    }
+    
+    // 获取字段的显示名称
+    function getFieldDisplayName(field) {
+        const fieldMap = {
+            'area_name': '区域名称',
+            'installation_floor': '楼层',
+            'installation_location': '安装位置',
+            'equipment_type': '设备类型',
+            'equipment_name': '器材名称',
+            'model': '品牌型号',
+            'weight': '重量(kg)',
+            'quantity': '数量',
+            'production_date': '生产日期',
+            'remark': '备注'
+        };
+        
+        return fieldMap[field] || field;
+    }
+    
+    // 保存批量修改
+    function saveChanges() {
+        console.log("开始保存修改");
+        console.log("修改数据:", changesMap);
+        // 准备请求数据
+        const updates = [];
+        
+        for (const equipmentId in changesMap) {
+            updates.push({
+                id: parseInt(equipmentId),
+                changes: changesMap[equipmentId]
+            });
+        }
+        
+        // 显示加载指示器
+        document.getElementById('loadingIndicator').classList.remove('hidden');
+        
+        // 获取CSRF令牌 - 添加错误处理
+        let csrfToken = '';
+        const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+        
+        if (csrfMeta) {
+            csrfToken = csrfMeta.getAttribute('content');
+            console.log("CSRF Token:", csrfToken);
+        } else {
+            console.warn("CSRF令牌未找到，尝试从表单获取");
+            // 尝试从页面上的表单中获取令牌
+            const csrfInput = document.querySelector('input[name="csrf_token"]');
+            if (csrfInput) {
+                csrfToken = csrfInput.value;
+                console.log("从表单获取CSRF Token:", csrfToken);
+            } else {
+                console.error("无法找到CSRF令牌，可能会导致请求被拒绝");
+            }
+        }
+        
+        console.log("发送更新请求:", updates);
+        
+        // 发送批量更新请求
+        fetch('/equipment-batch/api/batch-update-multiple', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({
+                updates: updates
+            }),
+        })
+        .then(response => {
+            console.log("收到响应状态:", response.status);
+            if (!response.ok) {
+                return response.text().then(text => {
+                    console.log("错误响应文本:", text);
+                    throw new Error(`HTTP error! status: ${response.status}, message: ${text}`);
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log("处理响应数据:", data);
+            // 隐藏加载指示器
+            document.getElementById('loadingIndicator').classList.add('hidden');
+            
+            if (data.success) {
+                // 关闭模态窗口
+                const confirmModal = bootstrap.Modal.getInstance(document.getElementById('confirmChangesModal'));
+                confirmModal.hide();
+                
+                // 清空修改记录
+                changesMap = {};
+                
+                // 退出编辑模式
+                toggleEditMode();
+                
+                // 显示成功消息
+                alert(data.message);
+                
+                // 重新加载数据 - 确保使用最新数据
+                loadEquipmentData();
+            } else {
+                alert('更新失败: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('更新失败:', error);
+            // 隐藏加载指示器
+            document.getElementById('loadingIndicator').classList.add('hidden');
+            alert('更新失败，请稍后再试。错误详情: ' + error.message);
+        });
+    }
+
+    // 批量删除设备
+function batchDeleteEquipment() {
+    // 显示加载指示器
+    document.getElementById('loadingIndicator').classList.remove('hidden');
+    
+    // 获取CSRF令牌 - 使用与saveChanges相同的方法
+    let csrfToken = '';
+    const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+    
+    if (csrfMeta) {
+        csrfToken = csrfMeta.getAttribute('content');
+        console.log("CSRF Token:", csrfToken);
+    } else {
+        console.warn("CSRF令牌未找到，尝试从表单获取");
+        // 尝试从页面上的表单中获取令牌
+        const csrfInput = document.querySelector('input[name="csrf_token"]');
+        if (csrfInput) {
+            csrfToken = csrfInput.value;
+            console.log("从表单获取CSRF Token:", csrfToken);
+        } else {
+            console.error("无法找到CSRF令牌，可能会导致请求被拒绝");
+        }
+    }
+    
+    // 发送批量删除请求
+    fetch('/equipment-batch/api/batch-delete', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({
+            ids: selectedIds
+        }),
+    })
+    .then(response => {
+        console.log("收到删除响应状态:", response.status);
+        if (!response.ok) {
+            return response.text().then(text => {
+                console.log("错误响应文本:", text);
+                throw new Error(`HTTP error! status: ${response.status}, message: ${text}`);
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log("处理删除响应数据:", data);
+        // 隐藏加载指示器
+        document.getElementById('loadingIndicator').classList.add('hidden');
+        
+        if (data.success) {
+            // 关闭模态窗口
+            const deleteModal = bootstrap.Modal.getInstance(document.getElementById('deleteConfirmModal'));
+            deleteModal.hide();
+            
+            // 清空选择的ID
+            selectedIds = [];
+            
+            // 显示成功消息
+            alert(data.message);
+            
+            // 重新加载数据
+            loadEquipmentData();
+        } else {
+            alert('删除失败: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('删除失败:', error);
+        // 隐藏加载指示器
+        document.getElementById('loadingIndicator').classList.add('hidden');
+        alert('删除失败，请稍后再试。错误详情: ' + error.message);
+    });
+}
+    
+</script>
+{% endblock %}

@@ -1,4 +1,9 @@
-@echo on
+@echo off
+REM 设置控制台代码页为UTF-8，解决中文显示问题
+chcp 65001 > nul
+REM 可选: 修改控制台字体以更好地支持中文
+REM reg add "HKEY_CURRENT_USER\Console" /v "FaceName" /t REG_SZ /d "NSimSun" /f > nul
+
 echo ======================================
 echo 消防安全管理系统服务启动脚本
 echo ======================================
@@ -45,3 +50,4 @@ python run_with_waitress.py
 
 echo [%time%] 服务器已停止
 pause
+

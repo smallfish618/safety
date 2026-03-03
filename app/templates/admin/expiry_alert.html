@@ -289,6 +289,16 @@
                                                 data-type="{{ item.type }}">
                                             <i class="bi bi-info-circle me-1"></i>查看详情
                                         </button>
+                                        <button type="button" class="btn btn-sm btn-outline-success ms-1 edit-item-btn"
+                                                data-item-id="{{ item.source_id }}"
+                                                data-source-type="{{ item.source_table }}"
+                                                data-item-name="{{ item.name }}"
+                                                data-item-model="{{ item.model }}"
+                                                data-production-date="{{ item.production_date }}"
+                                                data-area-name="{{ item.area_name }}"
+                                                data-location="{{ item.location }}">
+                                            <i class="bi bi-pencil-square me-1"></i>编辑
+                                        </button>
                                     </td>
                                 </tr>
                             {% endfor %}
@@ -559,6 +569,76 @@
                     
                     <!-- 现有的模态框内容 -->
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 编辑模态框 -->
+    <div class="modal fade" id="editItemModal" tabindex="-1" aria-labelledby="editItemModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title" id="editItemModalLabel">编辑物资信息</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="editItemForm">
+                    <div class="modal-body">
+                        <input type="hidden" id="edit-item-id" name="item_id">
+                        <input type="hidden" id="edit-source-type" name="source_type">
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="edit-item-name" class="form-label">物品/器材名称</label>
+                                <input type="text" class="form-control" id="edit-item-name" name="item_name" readonly>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="edit-model" class="form-label">规格型号</label>
+                                <input type="text" class="form-control" id="edit-model" name="model">
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="edit-area-name" class="form-label">区域</label>
+                                <input type="text" class="form-control" id="edit-area-name" name="area_name" readonly>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="edit-location" class="form-label">位置</label>
+                                <input type="text" class="form-control" id="edit-location" name="location">
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="edit-production-date" class="form-label">生产日期</label>
+                                <input type="date" class="form-control" id="edit-production-date" name="production_date">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="edit-quantity" class="form-label">数量</label>
+                                <input type="number" class="form-control" id="edit-quantity" name="quantity" min="1">
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <label for="edit-remark" class="form-label">备注</label>
+                                <textarea class="form-control" id="edit-remark" name="remark" rows="2"></textarea>
+                            </div>
+                        </div>
+
+                        <!-- 编辑提示 -->
+                        <div class="alert alert-info" role="alert">
+                            <i class="bi bi-info-circle me-2"></i>
+                            <small>物品/器材名称和区域为只读字段。如需修改其他详细信息，请跳转到编辑页面。</small>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                        <button type="button" class="btn btn-primary" id="editSaveBtn">
+                            <i class="bi bi-check-circle me-1"></i>保存
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -896,6 +976,112 @@ document.addEventListener('DOMContentLoaded', function() {
             initEmailAlertModule();
         }
     }
+});
+</script>
+
+<!-- 编辑功能脚本 -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 编辑按钮点击事件处理
+    const editbtns = document.querySelectorAll('.edit-item-btn');
+    console.log(`找到 ${editbtns.length} 个编辑按钮`);
+    
+    editbtns.forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            // 获取按钮上的数据
+            const itemId = this.getAttribute('data-item-id');
+            const sourceType = this.getAttribute('data-source-type');
+            const itemName = this.getAttribute('data-item-name');
+            const itemModel = this.getAttribute('data-item-model');
+            const productionDate = this.getAttribute('data-production-date');
+            const areaName = this.getAttribute('data-area-name');
+            const location = this.getAttribute('data-location');
+            
+            console.log('打开编辑模态框:', { itemId, sourceType, itemName });
+            
+            // 填充表单数据
+            document.getElementById('edit-item-id').value = itemId;
+            document.getElementById('edit-source-type').value = sourceType;
+            document.getElementById('edit-item-name').value = itemName;
+            document.getElementById('edit-model').value = itemModel || '';
+            document.getElementById('edit-production-date').value = productionDate || '';
+            document.getElementById('edit-area-name').value = areaName;
+            document.getElementById('edit-location').value = location || '';
+            document.getElementById('edit-quantity').value = this.getAttribute('data-quantity') || '';
+            document.getElementById('edit-remark').value = this.getAttribute('data-remark') || '';
+            
+            // 显示编辑模态框
+            const editModal = new bootstrap.Modal(document.getElementById('editItemModal'));
+            editModal.show();
+        });
+    });
+    
+    // 编辑保存按钮点击事件
+    const editSaveBtn = document.getElementById('editSaveBtn');
+    if (editSaveBtn) {
+        editSaveBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            const itemId = document.getElementById('edit-item-id').value;
+            const sourceType = document.getElementById('edit-source-type').value;
+            const model = document.getElementById('edit-model').value;
+            const location = document.getElementById('edit-location').value;
+            const productionDate = document.getElementById('edit-production-date').value;
+            const quantity = document.getElementById('edit-quantity').value;
+            const remark = document.getElementById('edit-remark').value;
+            
+            // 构建请求数据
+            const formData = new FormData();
+            formData.append('item_id', itemId);
+            formData.append('source_type', sourceType);
+            formData.append('model', model);
+            formData.append('location', location);
+            formData.append('production_date', productionDate);
+            formData.append('quantity', quantity);
+            formData.append('remark', remark);
+            
+            // 获取CSRF令牌
+            const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+            
+            // 提交编辑请求
+            fetch('/admin/update_expiry_item', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken,
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: new URLSearchParams(new FormData(document.getElementById('editItemForm')))
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    console.log('编辑成功:', data.message);
+                    
+                    // 关闭模态框
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('editItemModal'));
+                    if (modal) {
+                        modal.hide();
+                    }
+                    
+                    // 延迟刷新页面，确保模态框完全关闭
+                    setTimeout(function() {
+                        window.location.reload();
+                    }, 500);
+                } else {
+                    console.error('编辑失败:', data.message);
+                    alert('编辑失败：' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('编辑请求错误:', error);
+                alert('编辑时出错：' + error.message);
+            });
+        });
+    }
+    
+    console.log('编辑功能初始化完成');
 });
 </script>
 {% endblock %}

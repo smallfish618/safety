@@ -465,6 +465,13 @@ document.addEventListener('DOMContentLoaded', function() {
     function sendAlertEmails() {
         console.log("准备发送预警邮件");
         
+        // 【关键修复】在发送前确保负责人复选框已初始化
+        const responsibleCheckboxes = document.querySelectorAll('.responsible-checkbox');
+        if (responsibleCheckboxes.length === 0) {
+            console.warn("警告: 负责人复选框还未初始化，现在初始化...");
+            initResponsibleCheckboxes();
+        }
+        
         // 获取邮件信息
         const emailSubject = document.getElementById('emailSubject').value;
         const emailContent = document.getElementById('emailContent').innerHTML;
@@ -634,14 +641,23 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data.recipients_count > 0) {
                     emailSendMessage.textContent = `邮件发送成功！已发送给 ${data.recipients_count} 位接收者。`;
                 } else {
-                    emailSendMessage.textContent = '没有找到有效的收件人邮箱地址。请确保负责人信息中有正确的邮箱地址。';
+                    // 没有发送任何邮件，显示更详细的错误信息 
+                    emailSendAlert.classList.remove('alert-success');
+                    emailSendAlert.classList.add('alert-warning');
+                    emailSendMessage.innerHTML = `<strong>未能发送邮件</strong>: ${data.error || data.message || '没有找到有效的收件人邮箱地址。'}` +
+                        '<br><small>请检查：<br>' +
+                        '1. 是否选择了预警物品中对应的负责人<br>' +
+                        '2. 负责人表中是否已设置邮箱地址<br>' +
+                        '3. 邮箱地址格式是否正确（需包含@符号）</small>';
                 }
                 
-                // 3秒后自动关闭模态框
-                setTimeout(() => {
-                    const modal = bootstrap.Modal.getInstance(document.getElementById('emailPreviewModal'));
-                    if (modal) modal.hide();
-                }, 3000);
+                // 仅在成功发送邮件时自动关闭模态框
+                if (data.recipients_count > 0) {
+                    setTimeout(() => {
+                        const modal = bootstrap.Modal.getInstance(document.getElementById('emailPreviewModal'));
+                        if (modal) modal.hide();
+                    }, 3000);
+                }
             } else {
                 // 发送失败
                 emailSendAlert.classList.remove('alert-info');
@@ -1149,14 +1165,23 @@ function sendAlertEmails() {
             if (data.recipients_count > 0) {
                 emailSendMessage.textContent = `邮件发送成功！已发送给 ${data.recipients_count} 位接收者。`;
             } else {
-                emailSendMessage.textContent = '没有找到有效的收件人邮箱地址。请确保负责人信息中有正确的邮箱地址。';
+                // 没有发送任何邮件，显示更详细的错误信息
+                emailSendAlert.classList.remove('alert-success');
+                emailSendAlert.classList.add('alert-warning');
+                emailSendMessage.innerHTML = `<strong>未能发送邮件</strong>: ${data.error || data.message || '没有找到有效的收件人邮箱地址。'}` +
+                    '<br><small>请检查：<br>' +
+                    '1. 是否选择了预警物品中对应的负责人<br>' +
+                    '2. 负责人表中是否已设置邮箱地址<br>' +
+                    '3. 邮箱地址格式是否正确（需包含@符号）</small>';
             }
             
-            // 3秒后自动关闭模态框
-            setTimeout(() => {
-                const modal = bootstrap.Modal.getInstance(document.getElementById('emailPreviewModal'));
-                if (modal) modal.hide();
-            }, 3000);
+            // 仅在成功发送邮件时自动关闭模态框
+            if (data.recipients_count > 0) {
+                setTimeout(() => {
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('emailPreviewModal'));
+                    if (modal) modal.hide();
+                }, 3000);
+            }
         } else {
             // 发送失败
             emailSendAlert.classList.remove('alert-info');

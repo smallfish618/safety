@@ -195,6 +195,19 @@ git pull origin main  # 再次拉取，确保与远程同步
 git push origin main
 
 
+git add .
+git commit -m "您的更改描述"
+
 # 方法1: 使用SSH而不是HTTPS (如果您有SSH密钥设置)
+执行设置远程URL的命令，确保没有任何错误：
 git remote set-url origin git@github.com:smallfish618/safety.git
+验证设置是否成功：
+git remote -v
+现在应该显示：
+origin  git@github.com:smallfish618/safety.git (fetch)
+origin  git@github.com:smallfish618/safety.git (push)
+
+
+
+再次尝试推送
 git push origin main

@@ -39,12 +39,13 @@ def create_app(config_class=Config):
     app.config['SESSION_COOKIE_SECURE'] = False    # 非HTTPS环境下也可使用
     
     # 配置邮箱
-    app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER')
-    app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
-    app.config['MAIL_USE_SSL'] = True
-    app.config['MAIL_USE_TLS'] = False
-    app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
-    app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
+    app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER') or 'smtp.qq.com'
+    app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT') or 465)
+    app.config['MAIL_USE_SSL'] = os.environ.get('MAIL_USE_SSL', 'true').lower() in ['true', 'yes', '1']
+    app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', 'false').lower() in ['true', 'yes', '1']
+    app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME') or '18184887@qq.com'
+    app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD') or 'hqchnwmlbvhhbidg'
+    app.config['MAIL_DEFAULT_SENDER'] = ('消防安全管理系统', os.environ.get('MAIL_SENDER') or '18184887@qq.com')
 
     # 在create_app函数内修改会话配置
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=12)  # 延长会话时间
@@ -202,6 +203,10 @@ def create_app(config_class=Config):
     # 注册错误处理器
     from app.error_handlers import register_error_handlers
     register_error_handlers(app)
+
+    # 注册批量处理蓝图
+    from app.routes.equipment_batch import equipment_batch_bp
+    app.register_blueprint(equipment_batch_bp, url_prefix='/equipment-batch')
     
     # 添加CSRF错误处理器
     @app.errorhandler(CSRFError)

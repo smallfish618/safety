@@ -1326,14 +1326,19 @@ def send_expiry_alert_emails():
         mail_password = current_app.config.get('MAIL_PASSWORD')
         mail_sender = current_app.config.get('MAIL_DEFAULT_SENDER', mail_username)
         
-        # 处理元组格式的发件人，使用formataddr确保符合RFC标准
+        # 处理元组格式的发件人 - QQ邮箱需要特殊格式化
         if isinstance(mail_sender, tuple):
             sender_name, sender_email = mail_sender
-            formatted_sender = formataddr((sender_name, sender_email))  # 使用formataddr格式化
-            mail_sender_email = sender_email  # 用于SMTP身份验证和发件人地址
+            # 对于QQ邮箱，使用简单的格式: 名称 <邮箱>
+            # 避免使用formataddr，因为QQ邮箱对RFC标准要求严格
+            if sender_name:
+                formatted_sender = f"{sender_name} <{sender_email}>"
+            else:
+                formatted_sender = sender_email
+            mail_sender_email = sender_email
         else:
-            # 如果不是元组，也使用formataddr处理可能的编码问题
-            formatted_sender = formataddr(('', mail_sender)) if '@' in mail_sender else mail_sender
+            # 如果不是元组，直接使用
+            formatted_sender = mail_sender
             mail_sender_email = mail_sender
         
         print(f"邮件服务器配置: 服务器={mail_server}, 端口={mail_port}, SSL={mail_use_ssl}, TLS={mail_use_tls}")
@@ -1376,13 +1381,13 @@ def send_expiry_alert_emails():
                 
                 # 为每位收件人创建新的SMTP连接
                 try:
-                    # 使用正确的SMTP类，基于SSL/TLS配置
+                    # 使用正确的SMTP类，基于SSL/TLS配置 - 增加超时时间到30秒
                     if mail_use_ssl:
-                        print(f"为 {person_name} 使用SSL连接到SMTP服务器: {mail_server}:{mail_port}")
-                        server = smtplib.SMTP_SSL(mail_server, mail_port, timeout=10)
+                        print(f"为 {person_name} 使用SSL连接到SMTP服务器: {mail_server}:{mail_port} (超时: 30秒)")
+                        server = smtplib.SMTP_SSL(mail_server, mail_port, timeout=30)
                     else:
-                        print(f"为 {person_name} 使用普通连接到SMTP服务器: {mail_server}:{mail_port}")
-                        server = smtplib.SMTP(mail_server, mail_port, timeout=10)
+                        print(f"为 {person_name} 使用普通连接到SMTP服务器: {mail_server}:{mail_port} (超时: 30秒)")
+                        server = smtplib.SMTP(mail_server, mail_port, timeout=30)
                         
                         # 如果启用了TLS，初始化TLS连接
                         if mail_use_tls:
@@ -1394,13 +1399,22 @@ def send_expiry_alert_emails():
                         print(f"使用用户名 {mail_username} 登录SMTP服务器")
                         server.login(mail_username, mail_password)
                     
-                    # 创建每个收件人的邮件副本
+                    # 创建每个收件人的邮件副本 - QQ邮箱兼容格式
                     recipient_msg = MIMEMultipart('alternative')
-                    recipient_msg['Subject'] = Header(email_subject, 'utf-8')
-                    recipient_msg['From'] = formatted_sender  # 使用RFC标准格式化的发件人
+                    # 对QQ邮箱，From头必须只包含邮箱地址，不能有显示名
+                    recipient_msg['From'] = mail_sender_email
                     recipient_msg['To'] = email_address
+                    # 邮件主题使用英文或者正确的UTF-8编码
+                    recipient_msg['Subject'] = Header(email_subject, 'utf-8')
+                    # 添加完整的邮件头信息
+                    from email.utils import formatdate, make_msgid
+                    recipient_msg['Date'] = formatdate(localtime=True)
+                    recipient_msg['Message-ID'] = make_msgid()
+                    recipient_msg['X-Priority'] = '3'
+                    recipient_msg['X-Mailer'] = 'Fire Safety Management System'
                     
                     # 设置邮件内容 - 使用个性化内容
+                    print(f"邮件内容大小: {len(personalized_content)} 字符")
                     personalized_html_part = MIMEText(personalized_content, 'html', 'utf-8')
                     recipient_msg.attach(personalized_html_part)
                     
@@ -1408,57 +1422,104 @@ def send_expiry_alert_emails():
                     print(f"发送邮件给 {person_name} ({email_address})")
                     server.sendmail(mail_sender_email, [email_address], recipient_msg.as_string())
                     
-                    # 记录成功发送的邮件日志 - 使用格式化的发件人字符串
-                    mail_log = MailLog(
-                        send_time=datetime.now(),
-                        sender=formatted_sender,  # 使用RFC标准格式化后的发件人
-                        recipient=email_address,
-                        recipient_name=person_name,
-                        subject=email_subject,
-                        content_summary=f"有效期预警邮件 - 包含{person_items_count}个物品",
-                        status="success",
-                        error_message=None,
-                        items_count=person_items_count,
-                        ip_address=ip_address,
-                        user_id=current_user.id,
-                        username=current_user.username
-                    )
-                    db.session.add(mail_log)
-                    db.session.commit()
-                    
                     recipients_count += 1
                     print(f"已向 {person_name} ({email_address}) 发送预警邮件")
                     
-                    # 关闭连接
-                    server.quit()
-                    print(f"SMTP服务器连接已关闭 (收件人: {person_name})")
+                    # 正确关闭连接
+                    try:
+                        server.quit()
+                        print(f"SMTP服务器连接已正常关闭 (收件人: {person_name})")
+                    except Exception as close_error:
+                        print(f"关闭SMTP连接时出错: {close_error}，尝试强制关闭")
+                        try:
+                            server.close()
+                        except:
+                            pass
                     
                     # 添加一点延迟，避免发送过快
                     import time
                     time.sleep(1)
+                    
+                    # 邮件日志写入单独处理，应对数据库连接问题
+                    try:
+                        # 刷新数据库连接
+                        db.session.remove()
+                        mail_log = MailLog(
+                            send_time=datetime.now(),
+                            sender=formatted_sender,
+                            recipient=email_address,
+                            recipient_name=person_name,
+                            subject=email_subject,
+                            content_summary=f"有效期预警邮件 - 包含{person_items_count}个物品",
+                            status="success",
+                            error_message=None,
+                            items_count=person_items_count,
+                            ip_address=ip_address,
+                            user_id=current_user.id,
+                            username=current_user.username
+                        )
+                        db.session.add(mail_log)
+                        db.session.commit()
+                    except Exception as log_err:
+                        print(f"警告: 无法保存邮件成功日志: {log_err}")
+                        db.session.rollback()
+                    
+                except smtplib.SMTPServerDisconnected as e:
+                    # 服务器意外断开连接 - 这是我们要处理的主要错误
+                    error_msg = f"SMTP服务器连接被关闭: {str(e)}"
+                    print(f"⚠ 向 {person_name} 发送邮件时连接错误: {error_msg}")
+                    failed_recipients.append(f"{person_name} (服务器连接错误)")
+                    
+                    # 记录发送失败的邮件日志
+                    try:
+                        db.session.remove()
+                        mail_log = MailLog(
+                            send_time=datetime.now(),
+                            sender=formatted_sender,
+                            recipient=email_address,
+                            recipient_name=person_name,
+                            subject=email_subject,
+                            content_summary=f"有效期预警邮件 - 包含{person_items_count}个物品",
+                            status="failed",
+                            error_message=f"连接错误: {str(e)}",
+                            items_count=person_items_count,
+                            ip_address=ip_address,
+                            user_id=current_user.id,
+                            username=current_user.username
+                        )
+                        db.session.add(mail_log)
+                        db.session.commit()
+                    except Exception as log_err:
+                        print(f"警告: 无法保存邮件失败日志: {log_err}")
+                        db.session.rollback()
                     
                 except smtplib.SMTPAuthenticationError as e:
                     error_msg = "SMTP身份验证失败：用户名或密码错误"
                     print(f"向 {person_name} 发送邮件时错误: {error_msg}")
                     failed_recipients.append(f"{person_name} ({error_msg})")
                     
-                    # 记录发送失败的邮件日志
-                    mail_log = MailLog(
-                        send_time=datetime.now(),
-                        sender=formatted_sender,  # 使用RFC标准格式化后的发件人
-                        recipient=email_address,
-                        recipient_name=person_name,
-                        subject=email_subject,
-                        content_summary=f"有效期预警邮件 - 包含{person_items_count}个物品",
-                        status="failed",
-                        error_message=f"认证错误: {str(e)}",
-                        items_count=person_items_count,
-                        ip_address=ip_address,
-                        user_id=current_user.id,
-                        username=current_user.username
-                    )
-                    db.session.add(mail_log)
-                    db.session.commit()
+                    #记录发送失败的邮件日志
+                    try:
+                        db.session.remove()
+                        mail_log = MailLog(
+                            send_time=datetime.now(),
+                            sender=formatted_sender,
+                            recipient=email_address,
+                            recipient_name=person_name,
+                            subject=email_subject,
+                            content_summary=f"有效期预警邮件 - 包含{person_items_count}个物品",
+                            status="failed",
+                            error_message=f"认证错误: {str(e)}",
+                            items_count=person_items_count,
+                            ip_address=ip_address,
+                            user_id=current_user.id,
+                            username=current_user.username
+                        )
+                        db.session.add(mail_log)
+                        db.session.commit()
+                    except Exception as log_err:
+                        print(f"警告: 无法保存认证失败日志: {log_err}")
+                        db.session.rollback()
                     
                 except smtplib.SMTPException as e:
                     error_msg = f"SMTP错误: {str(e)}"
@@ -1466,45 +1527,57 @@ def send_expiry_alert_emails():
                     failed_recipients.append(f"{person_name} ({error_msg})")
                     
                     # 记录发送失败的邮件日志
-                    mail_log = MailLog(
-                        send_time=datetime.now(),
-                        sender=formatted_sender,  # 使用RFC标准格式化后的发件人
-                        recipient=email_address,
-                        recipient_name=person_name,
-                        subject=email_subject,
-                        content_summary=f"有效期预警邮件 - 包含{person_items_count}个物品",
-                        status="failed",
-                        error_message=f"SMTP错误: {str(e)}",
-                        items_count=person_items_count,
-                        ip_address=ip_address,
-                        user_id=current_user.id,
-                        username=current_user.username
-                    )
-                    db.session.add(mail_log)
-                    db.session.commit()
+                    try:
+                        db.session.remove()
+                        mail_log = MailLog(
+                            send_time=datetime.now(),
+                            sender=formatted_sender,
+                            recipient=email_address,
+                            recipient_name=person_name,
+                            subject=email_subject,
+                            content_summary=f"有效期预警邮件 - 包含{person_items_count}个物品",
+                            status="failed",
+                            error_message=f"SMTP错误: {str(e)}",
+                            items_count=person_items_count,
+                            ip_address=ip_address,
+                            user_id=current_user.id,
+                            username=current_user.username
+                        )
+                        db.session.add(mail_log)
+                        db.session.commit()
+                    except Exception as log_err:
+                        print(f"警告: 无法保存SMTP错误日志: {log_err}")
+                        db.session.rollback()
                     
                 except Exception as e:
-                    error_msg = f"发送邮件过程中出错: {str(e)}"
-                    print(f"向 {person_name} 发送邮件时错误: {error_msg}")
-                    failed_recipients.append(f"{person_name} ({error_msg})")
+                    import traceback
+                    error_msg = f"发送邮件过程中出错: {str(e)} (类型: {type(e).__name__})"
+                    print(f"⚠ 向 {person_name} 发送邮件时错误: {error_msg}")
+                    print(f"错误堆栈:\n{traceback.format_exc()}")
+                    failed_recipients.append(f"{person_name} ({type(e).__name__})")
                     
                     # 记录发送失败的邮件日志
-                    mail_log = MailLog(
-                        send_time=datetime.now(),
-                        sender=formatted_sender,  # 使用RFC标准格式化后的发件人
-                        recipient=email_address,
-                        recipient_name=person_name,
-                        subject=email_subject,
-                        content_summary=f"有效期预警邮件 - 包含{person_items_count}个物品",
-                        status="failed",
-                        error_message=f"未知错误: {str(e)}",
-                        items_count=person_items_count,
-                        ip_address=ip_address,
-                        user_id=current_user.id,
-                        username=current_user.username
-                    )
-                    db.session.add(mail_log)
-                    db.session.commit()
+                    try:
+                        db.session.remove()
+                        mail_log = MailLog(
+                            send_time=datetime.now(),
+                            sender=formatted_sender,
+                            recipient=email_address,
+                            recipient_name=person_name,
+                            subject=email_subject,
+                            content_summary=f"有效期预警邮件 - 包含{person_items_count}个物品",
+                            status="failed",
+                            error_message=f"错误 ({type(e).__name__}): {str(e)}",
+                            items_count=person_items_count,
+                            ip_address=ip_address,
+                            user_id=current_user.id,
+                            username=current_user.username
+                        )
+                        db.session.add(mail_log)
+                        db.session.commit()
+                    except Exception as log_err:
+                        print(f"警告: 无法保存通用错误日志: {log_err}")
+                        db.session.rollback()
                     
             except Exception as e:
                 print(f"为 {person_name} 处理邮件内容时出错: {str(e)}")
@@ -2021,3 +2094,134 @@ def check_item_name():
     except Exception as e:
         traceback.print_exc()
         return jsonify({'exists': False, 'error': str(e)})
+
+@admin_bp.route('/update_expiry_item', methods=['POST'])
+@login_required
+def update_expiry_item():
+    """更新有效期预警物资信息"""
+    try:
+        from datetime import datetime
+        from app.models.station import FireStation
+        from app.models.equipment import FireEquipment
+        
+        # 获取表单数据
+        item_id = request.form.get('item_id', type=int)
+        source_type = request.form.get('source_type')
+        model = request.form.get('model', '')
+        location = request.form.get('location', '')
+        production_date_str = request.form.get('production_date', '')
+        quantity = request.form.get('quantity', '')
+        remark = request.form.get('remark', '')
+        
+        print(f"开始更新物资: item_id={item_id}, source_type={source_type}")
+        
+        # 根据来源类型处理更新
+        if source_type == 'station':
+            # 更新微型站物资
+            equipment = FireStation.query.get_or_404(item_id)
+            
+            # 检查权限
+            if current_user.role != 'admin':
+                permission = Permission.query.filter_by(
+                    user_id=current_user.id,
+                    area_id=equipment.area_code,
+                    operation_type='微型消防站',
+                    can_edit=True
+                ).first()
+                
+                if not permission:
+                    return jsonify({
+                        'success': False,
+                        'message': '您没有权限编辑此物资信息'
+                    }), 403
+            
+            # 更新字段
+            if model:
+                equipment.model = model
+            # 注意：FireStation 模型中没有 location 字段，跳过更新
+            if production_date_str:
+                try:
+                    equipment.production_date = datetime.strptime(production_date_str, '%Y-%m-%d').date()
+                except ValueError:
+                    return jsonify({
+                        'success': False,
+                        'message': '生产日期格式不正确'
+                    }), 400
+            if quantity:
+                try:
+                    equipment.quantity = int(quantity)
+                except ValueError:
+                    return jsonify({
+                        'success': False,
+                        'message': '数量必须为数字'
+                    }), 400
+            if remark:
+                equipment.remark = remark
+            
+            db.session.commit()
+            
+        elif source_type == 'equipment':
+            # 更新消防器材
+            equipment = FireEquipment.query.get_or_404(item_id)
+            
+            # 检查权限
+            if current_user.role != 'admin':
+                permission = Permission.query.filter_by(
+                    user_id=current_user.id,
+                    area_id=str(equipment.area_code),
+                    operation_type='灭火器和呼吸器',
+                    can_edit=True
+                ).first()
+                
+                if not permission:
+                    return jsonify({
+                        'success': False,
+                        'message': '您没有权限编辑此消防器材信息'
+                    }), 403
+            
+            # 更新字段
+            if model:
+                equipment.model = model
+            if location:
+                equipment.installation_location = location
+            if production_date_str:
+                try:
+                    equipment.production_date = datetime.strptime(production_date_str, '%Y-%m-%d').date()
+                except ValueError:
+                    return jsonify({
+                        'success': False,
+                        'message': '生产日期格式不正确'
+                    }), 400
+            if quantity:
+                try:
+                    equipment.quantity = int(quantity)
+                except ValueError:
+                    return jsonify({
+                        'success': False,
+                        'message': '数量必须为数字'
+                    }), 400
+            if remark:
+                equipment.remark = remark
+            
+            db.session.commit()
+        else:
+            return jsonify({
+                'success': False,
+                'message': '未知的物资类型'
+            }), 400
+        
+        print(f"物资更新成功: {item_id}")
+        return jsonify({
+            'success': True,
+            'message': '物资信息已更新成功'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        import traceback
+        print(f"更新物资时出错: {str(e)}")
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'message': f'更新物资时出错: {str(e)}'
+        }), 500

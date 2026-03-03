@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+
+{% block title %}预览批量导入数据{% endblock %}
+
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mt-4 mb-4">预览导入数据</h1>
+    
+    <div class="alert alert-info">
+        <p><i class="bi bi-info-circle"></i> 请确认以下数据正确无误，然后点击"确认导入"按钮。</p>
+        <p>共计 <strong>{{ data|length }}</strong> 条记录。</p>
+    </div>
+    
+    <!-- 数据表格 -->
+    <div class="table-responsive">
+        <table class="table table-striped table-bordered">
+            <thead>
+                <tr class="table-dark">
+                    <th width="40px">#</th>
+                    {% for column in columns %}
+                    <th>{{ column }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in data %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    {% for column in columns %}
+                    <td>{{ row[column]|default('') }}</td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    <div class="mt-4 mb-5">
+        <form action="{{ url_for('equipment_batch.confirm_import') }}" method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="filepath" value="{{ filepath }}">
+            <button type="submit" class="btn btn-success me-2">
+                <i class="bi bi-check-circle"></i> 确认导入
+            </button>
+            <a href="{{ url_for('equipment_batch.batch_manage') }}" class="btn btn-secondary">
+                <i class="bi bi-x-circle"></i> 取消
+            </a>
+        </form>
+    </div>
+</div>
+{% endblock %}

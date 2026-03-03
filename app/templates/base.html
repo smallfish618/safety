@@ -352,7 +352,16 @@
                                     <i class="bi bi-alarm"></i> 定时任务管理
                                 </a>
                             </li>
-                            
+                            <!-- 批量管理菜单 -->
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle" href="#" id="equipmentDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="bi bi-tools"></i> 消防器材管理
+                                </a>
+                                <ul class="dropdown-menu" aria-labelledby="equipmentDropdown">
+                                    <li><a class="dropdown-item" href="{{ url_for('equipment_batch.batch_manage') }}">批量管理</a></li>
+                                </ul>
+                            </li>
+
                             {% endif %}
                             
                             <!-- 个人账户菜单项 - 所有用户可见 -->
