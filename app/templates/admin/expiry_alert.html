@@ -96,8 +96,13 @@
     <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
             <h5 class="card-title mb-0">筛选条件</h5>
-            <div>
-                <a href="{{ url_for('admin.expiry_alert', filter_type=filter_type) }}" class="btn btn-sm btn-outline-secondary">
+            <div class="d-flex align-items-center gap-2">
+                <a href="{{ url_for('admin.expiry_alert', filter_type=filter_type, filter_source=filter_source, filter_level=filter_level, filter_name=filter_name, filter_responsible=filter_responsible, show_long_term=0 if show_long_term else 1) }}"
+                   class="btn btn-sm {% if show_long_term %}btn-success{% else %}btn-outline-success{% endif %}">
+                    <i class="bi bi-infinity me-1"></i>
+                    {% if show_long_term %}已显示长期项{% else %}显示长期项{% endif %}
+                </a>
+                <a href="{{ url_for('admin.expiry_alert', filter_type=filter_type, show_long_term=1 if show_long_term else 0) }}" class="btn btn-sm btn-outline-secondary">
                     <i class="bi bi-arrow-repeat me-1"></i>重置筛选
                 </a>
                 <button type="button" class="btn btn-sm btn-link text-muted" data-bs-toggle="collapse" data-bs-target="#filterCollapse" aria-expanded="false">
@@ -114,6 +119,16 @@
                 <form action="{{ url_for('admin.expiry_alert') }}" method="get" class="row g-3">
                     <!-- 保留当前的filter_type参数 -->
                     <input type="hidden" name="filter_type" value="{{ filter_type }}">
+
+                    <!-- 新增长期项显示开关 -->
+                    <div class="col-md-3 d-flex align-items-end">
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="show_long_term" name="show_long_term" value="1" {% if show_long_term %}checked{% endif %}>
+                            <label class="form-check-label" for="show_long_term">
+                                显示长期项（仅展示，不计入统计）
+                            </label>
+                        </div>
+                    </div>
                     
                     <!-- 新增来源类型筛选 -->
                     <div class="col-md-3">
@@ -164,7 +179,7 @@
                         <button type="submit" class="btn btn-primary">
                             <i class="bi bi-search me-1"></i>筛选
                         </button>
-                        <a href="{{ url_for('admin.expiry_alert', filter_type=filter_type) }}" class="btn btn-outline-secondary ms-2">
+                        <a href="{{ url_for('admin.expiry_alert', filter_type=filter_type, show_long_term=1 if show_long_term else 0) }}" class="btn btn-outline-secondary ms-2">
                             <i class="bi bi-x-circle me-1"></i>清除筛选
                         </a>
                     </div>
@@ -187,11 +202,11 @@
                 
                 <div class="btn-group">
                     <!-- 所有物品按钮始终可点击 -->
-                    <a href="{{ url_for('admin.expiry_alert', filter_type='all') }}" class="btn btn-sm {% if filter_type == 'all' or not filter_type %}btn-primary{% else %}btn-outline-secondary{% endif %}">所有物品</a>
+                    <a href="{{ url_for('admin.expiry_alert', filter_type='all', show_long_term=1 if show_long_term else 0) }}" class="btn btn-sm {% if filter_type == 'all' or not filter_type %}btn-primary{% else %}btn-outline-secondary{% endif %}">所有物品</a>
                     
                     <!-- 微型站物资按钮 - 根据权限显示 -->
                     {% if has_station_permission %}
-                        <a href="{{ url_for('admin.expiry_alert', filter_type='station') }}" 
+                                <a href="{{ url_for('admin.expiry_alert', filter_type='station', show_long_term=1 if show_long_term else 0) }}" 
                            class="btn btn-sm {% if filter_type == 'station' %}btn-primary{% else %}btn-outline-secondary{% endif %}">微型站物资</a>
                     {% else %}
                         <button type="button" class="btn btn-sm btn-outline-secondary opacity-50" 
@@ -202,7 +217,7 @@
                     
                     <!-- 消防器材按钮 - 根据权限显示 -->
                     {% if has_equipment_permission %}
-                        <a href="{{ url_for('admin.expiry_alert', filter_type='equipment') }}" 
+                                <a href="{{ url_for('admin.expiry_alert', filter_type='equipment', show_long_term=1 if show_long_term else 0) }}" 
                            class="btn btn-sm {% if filter_type == 'equipment' %}btn-primary{% else %}btn-outline-secondary{% endif %}">消防器材</a>
                     {% else %}
                         <button type="button" class="btn btn-sm btn-outline-secondary opacity-50" 
@@ -216,7 +231,7 @@
         <div class="card-body">
             {% if expiring_items %}
                 <div class="table-responsive">
-                    <table class="table table-striped table-hover" id="expiryTable">
+                    <table class="table table-striped table-hover table-sm align-middle" id="expiryTable">
                         <thead>
                             <tr>
                                 <th>来源类型</th>
@@ -248,10 +263,18 @@
                                     <td>{{ item.name }}</td>
                                     <td>{{ item.model }}</td>
                                     <td>{{ item.production_date }}</td>
-                                    <td data-bs-toggle="tooltip" title="该类物品在规则表中的标准有效期">{{ item.expiry_years }}</td>
+                                    <td data-bs-toggle="tooltip" title="该类物品在规则表中的标准有效期">
+                                        {% if item.expiry_years == 0 or item.expiry_years == 0.0 or item.expiry_years == '0' %}
+                                            长期
+                                        {% else %}
+                                            {{ item.expiry_years }}
+                                        {% endif %}
+                                    </td>
                                     <td>{{ item.expiry_date }}</td>
                                     <td>
-                                        {% if item.days_remaining < 0 %}
+                                        {% if item.is_long_term %}
+                                            <span class="badge bg-secondary">长期</span>
+                                        {% elif item.days_remaining < 0 %}
                                             <span class="badge bg-danger">{{ item.days_remaining }} 天</span>
                                         {% elif item.days_remaining <= 30 %}
                                             <span class="badge bg-warning text-dark">{{ item.days_remaining }} 天</span>
@@ -263,7 +286,9 @@
                                     </td>
                                     <td>{{ item.responsible_person }}</td>
                                     <td>
-                                        {% if item.days_remaining < 0 %}
+                                        {% if item.is_long_term %}
+                                            <span class="text-secondary fw-bold">长期</span>
+                                        {% elif item.days_remaining < 0 %}
                                             <span class="text-danger fw-bold">已到期</span>
                                         {% elif item.days_remaining <= 30 %}
                                             <span class="text-warning">30天内到期</span>
@@ -281,8 +306,9 @@
                                                 data-item-model="{{ item.model }}"
                                                 data-production-date="{{ item.production_date }}"
                                                 data-expiry-date="{{ item.expiry_date }}"
-                                                data-days-remaining="{{ item.days_remaining }}"
+                                                data-days-remaining="{{ item.days_remaining if item.days_remaining is not none else '' }}"
                                                 data-expiry-years="{{ item.expiry_years }}"
+                                                data-is-long-term="{{ 'true' if item.is_long_term else 'false' }}"
                                                 data-responsible-person="{{ item.responsible_person }}"
                                                 data-area-name="{{ item.area_name }}"
                                                 data-location="{{ item.location }}"
@@ -315,14 +341,14 @@
                     <ul class="pagination mb-0">
                         <!-- 首页按钮 -->
                         <li class="page-item {{ 'disabled' if page == 1 else '' }}">
-                            <a class="page-link" href="{{ url_for('admin.expiry_alert', page=1, filter_type=filter_type, filter_source=filter_source, filter_level=filter_level, filter_name=filter_name, filter_responsible=filter_responsible) }}" aria-label="First">
+                            <a class="page-link" href="{{ url_for('admin.expiry_alert', page=1, filter_type=filter_type, filter_source=filter_source, filter_level=filter_level, filter_name=filter_name, filter_responsible=filter_responsible, show_long_term=1 if show_long_term else 0) }}" aria-label="First">
                                 <span aria-hidden="true">&laquo;&laquo;</span>
                             </a>
                         </li>
                         
                         <!-- 上一页按钮 -->
                         <li class="page-item {{ 'disabled' if page == 1 else '' }}">
-                            <a class="page-link" href="{{ url_for('admin.expiry_alert', page=page-1, filter_type=filter_type, filter_source=filter_source, filter_level=filter_level, filter_name=filter_name, filter_responsible=filter_responsible) }}" aria-label="Previous">
+                            <a class="page-link" href="{{ url_for('admin.expiry_alert', page=page-1, filter_type=filter_type, filter_source=filter_source, filter_level=filter_level, filter_name=filter_name, filter_responsible=filter_responsible, show_long_term=1 if show_long_term else 0) }}" aria-label="Previous">
                                 <span aria-hidden="true">&laquo;</span>
                             </a>
                         </li>
@@ -334,20 +360,20 @@
                         
                         {% for p in range(start_page, end_page+1) %}
                             <li class="page-item {{ 'active' if p == page else '' }}">
-                                <a class="page-link" href="{{ url_for('admin.expiry_alert', page=p, filter_type=filter_type, filter_source=filter_source, filter_level=filter_level, filter_name=filter_name, filter_responsible=filter_responsible) }}">{{ p }}</a>
+                                <a class="page-link" href="{{ url_for('admin.expiry_alert', page=p, filter_type=filter_type, filter_source=filter_source, filter_level=filter_level, filter_name=filter_name, filter_responsible=filter_responsible, show_long_term=1 if show_long_term else 0) }}">{{ p }}</a>
                             </li>
                         {% endfor %}
                         
                         <!-- 下一页按钮 -->
                         <li class="page-item {{ 'disabled' if page == total_pages else '' }}">
-                            <a class="page-link" href="{{ url_for('admin.expiry_alert', page=page+1, filter_type=filter_type, filter_source=filter_source, filter_level=filter_level, filter_name=filter_name, filter_responsible=filter_responsible) }}" aria-label="Next">
+                            <a class="page-link" href="{{ url_for('admin.expiry_alert', page=page+1, filter_type=filter_type, filter_source=filter_source, filter_level=filter_level, filter_name=filter_name, filter_responsible=filter_responsible, show_long_term=1 if show_long_term else 0) }}" aria-label="Next">
                                 <span aria-hidden="true">&raquo;</span>
                             </a>
                         </li>
                         
                         <!-- 末页按钮 -->
                         <li class="page-item {{ 'disabled' if page == total_pages else '' }}">
-                            <a class="page-link" href="{{ url_for('admin.expiry_alert', page=total_pages, filter_type=filter_type, filter_source=filter_source, filter_level=filter_level, filter_name=filter_name, filter_responsible=filter_responsible) }}" aria-label="Last">
+                            <a class="page-link" href="{{ url_for('admin.expiry_alert', page=total_pages, filter_type=filter_type, filter_source=filter_source, filter_level=filter_level, filter_name=filter_name, filter_responsible=filter_responsible, show_long_term=1 if show_long_term else 0) }}" aria-label="Last">
                                 <span aria-hidden="true">&raquo;&raquo;</span>
                             </a>
                         </li>
@@ -645,22 +671,45 @@
 </div>
 {% endblock %}
 
-{% block head %}
+{% block styles %}
 {{ super() }}
-<meta name="csrf-token" content="{{ csrf_token() }}">
-<!-- 保留原有代码 -->
-<script>
-  console.log("页面加载 - CSRF令牌检查:");
-  document.addEventListener('DOMContentLoaded', function() {
-    const csrfMeta = document.querySelector('meta[name="csrf-token"]');
-    if (csrfMeta) {
-      console.log("CSRF令牌元素存在:", csrfMeta);
-      console.log("CSRF令牌值:", csrfMeta.getAttribute('content'));
-    } else {
-      console.error("错误: 找不到CSRF令牌元素!");
+<style>
+    /* 有效期预警表格：单行展示，不换行，超长省略 */
+    #expiryTable {
+        table-layout: fixed;
+        border-collapse: separate;
+        border-spacing: 0;
     }
-  });
-</script>
+
+    #expiryTable thead th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: #f8fafc;
+        white-space: nowrap;
+    }
+
+    #expiryTable th,
+    #expiryTable td {
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        vertical-align: middle;
+        max-width: 160px;
+    }
+
+    /* 长文本列放宽一点 */
+    #expiryTable th:nth-child(3),
+    #expiryTable td:nth-child(3),
+    #expiryTable th:nth-child(4),
+    #expiryTable td:nth-child(4) {
+        max-width: 220px;
+    }
+
+    #expiryTable tbody tr:hover {
+        background-color: #f1f5f9;
+    }
+</style>
 {% endblock %}
 
 {% block scripts %}
@@ -826,7 +875,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 const model = this.getAttribute('data-item-model');
                 const productionDate = this.getAttribute('data-production-date');
                 const expiryDate = this.getAttribute('data-expiry-date');
-                const daysRemaining = parseInt(this.getAttribute('data-days-remaining'));
+                const isLongTerm = this.getAttribute('data-is-long-term') === 'true';
+                const daysRemainingRaw = this.getAttribute('data-days-remaining');
+                const daysRemaining = daysRemainingRaw !== '' ? parseInt(daysRemainingRaw) : null;
                 const expiryYears = this.getAttribute('data-expiry-years');
                 const responsible = this.getAttribute('data-responsible-person');
                 const areaName = this.getAttribute('data-area-name');
@@ -840,16 +891,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('modal-location').textContent = location || '未指定';
                 document.getElementById('modal-responsible').textContent = responsible || '未指定';
                 document.getElementById('modal-production-date').textContent = productionDate || '未知';
-                document.getElementById('modal-expiry-years').textContent = expiryYears || '未知';
-                document.getElementById('modal-expiry-date').textContent = expiryDate || '未知';
-                document.getElementById('modal-days-remaining').textContent = daysRemaining + ' 天';
+                document.getElementById('modal-expiry-years').textContent = (isLongTerm || expiryYears === '0' || expiryYears === '0.0') ? '长期' : (expiryYears || '未知');
+                document.getElementById('modal-expiry-date').textContent = isLongTerm ? '长期' : (expiryDate || '未知');
+                document.getElementById('modal-days-remaining').textContent = isLongTerm ? '长期' : (daysRemaining + ' 天');
                 document.getElementById('modal-type').textContent = type || '未知';
                 
                 // 设置预警级别和样式
                 const warningAlert = document.getElementById('modal-warning-alert');
                 const warningLevel = document.getElementById('modal-warning-level');
                 
-                if (daysRemaining < 0) {
+                if (isLongTerm) {
+                    warningAlert.className = 'alert alert-secondary mt-3';
+                    warningLevel.textContent = '长期有效（仅展示，不参与预警统计）';
+                } else if (daysRemaining < 0) {
                     warningAlert.className = 'alert alert-danger mt-3';
                     warningLevel.textContent = '已过期！请立即更换或处理。';
                 } else if (daysRemaining <= 30) {
@@ -874,6 +928,47 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 调用函数来设置详情按钮
     setupViewDetailsButtons();
+
+    // 为被截断的表格单元格自动添加 tooltip（显示完整内容）
+    const initOverflowTooltips = function() {
+        const cells = document.querySelectorAll('#expiryTable tbody td');
+        cells.forEach(cell => {
+            // 跳过操作列（按钮类控件）
+            if (cell.querySelector('button, a, input, select, textarea')) {
+                return;
+            }
+
+            const fullText = (cell.textContent || '').replace(/\s+/g, ' ').trim();
+            if (!fullText) {
+                return;
+            }
+
+            // 仅当内容发生省略时才显示tooltip
+            const isOverflowing = cell.scrollWidth > cell.clientWidth;
+            if (isOverflowing) {
+                cell.setAttribute('title', fullText);
+                cell.setAttribute('data-bs-toggle', 'tooltip');
+                cell.setAttribute('data-bs-placement', 'top');
+                cell.setAttribute('data-bs-trigger', 'hover');
+            } else {
+                cell.removeAttribute('title');
+                cell.removeAttribute('data-bs-toggle');
+                cell.removeAttribute('data-bs-placement');
+                cell.removeAttribute('data-bs-trigger');
+            }
+        });
+
+        if (window.bootstrap && typeof bootstrap.Tooltip === 'function') {
+            document.querySelectorAll('#expiryTable [data-bs-toggle="tooltip"]').forEach(el => {
+                if (!bootstrap.Tooltip.getInstance(el)) {
+                    new bootstrap.Tooltip(el, { container: 'body' });
+                }
+            });
+        }
+    };
+
+    // 首次初始化（渲染完成后）
+    setTimeout(initOverflowTooltips, 0);
 });
 </script>
 

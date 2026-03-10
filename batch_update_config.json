@@ -1,0 +1,59 @@
+{
+  "database": {
+    "path": "instance/safety.db",
+    "backup_dir": "e:/safety/data/backups",
+    "keep_backups_days": 30
+  },
+  "excel": {
+    "template_path": "e:/safety/data/batch_update_template.xlsx",
+    "sheets": {
+      "equipment": "消防器材",
+      "station": "微型消防站"
+    }
+  },
+  "import_settings": {
+    "batch_size": 100,
+    "encoding": "utf-8-sig",
+    "date_format": "%Y-%m-%d"
+  },
+  "logs": {
+    "directory": "e:/safety/logs",
+    "level": "INFO",
+    "format": "%(asctime)s - %(levelname)s - %(message)s"
+  },
+  "tables": {
+    "equipment": {
+      "name": "fire_equipment",
+      "columns": [
+        "area_code",
+        "area_name",
+        "installation_floor",
+        "installation_location",
+        "equipment_type",
+        "equipment_name",
+        "model",
+        "weight",
+        "quantity",
+        "production_date",
+        "service_life",
+        "expiration_date",
+        "remark"
+      ]
+    },
+    "station": {
+      "name": "fire_station",
+      "columns": [
+        "area_code",
+        "area_name",
+        "item_name",
+        "manufacturer",
+        "model",
+        "quantity",
+        "production_date",
+        "certificate",
+        "certificate_no",
+        "remark"
+      ]
+    }
+  }
+}

@@ -899,30 +899,42 @@ def expiry_alert():
         filter_level = request.args.get('filter_level', '')
         filter_name = request.args.get('filter_name', '')
         filter_responsible = request.args.get('filter_responsible', '')
+        show_long_term = request.args.get('show_long_term', '0') in ('1', 'true', 'on', 'yes')
         
         # 检查是否应用了任何筛选
-        has_filters = bool(filter_source or filter_level or filter_name or filter_responsible)
+        has_filters = bool(filter_source or filter_level or filter_name or filter_responsible or show_long_term)
         
         # 修改：将预警天数扩展到90天
         warning_days = 90  # 预警天数从30天改为90天
         
         # 初始化预警物品列表 - 修复：在使用前初始化
         expiring_items = []
+        long_term_items = []
         
         # 1. 从有效期规则表中获取所有规则
         # ...现有代码...
         expiry_rules = EquipmentExpiry.query.all()
         expiry_rule_dict = {}
+
+        def _normalize_name(value):
+            return str(value).strip().lower() if value is not None else ''
+
+        def _match_rule_by_name(target_name):
+            """按器材/物品名称精确匹配有效期规则（标准化后匹配）"""
+            normalized_target = _normalize_name(target_name)
+            if not normalized_target:
+                return None
+
+            return expiry_rule_dict.get(normalized_target)
         
         # 输出所有规则的详细信息，帮助诊断问题
         print(f"加载有效期规则总数: {len(expiry_rules)}")
         for rule in expiry_rules:
             print(f"规则: 类别={rule.item_category}, 名称={rule.item_name}, 有效期(年)={rule.normal_expiry}")
-            # 只有当规则的有效期不为0时才添加到字典中，0表示长期有效不需要预警
-            if rule.normal_expiry != 0:
-                expiry_rule_dict[rule.item_name] = rule.normal_expiry
-            else:
-                print(f"物品 '{rule.item_name}' 标记为长期有效，不进行预警")
+            # 0表示长期有效：仍保留到映射中，用于展示“长期”和统计排除
+            rule_key = _normalize_name(rule.item_name)
+            if rule_key:
+                expiry_rule_dict[rule_key] = rule
         
         # 2. 获取所有区域的负责人信息 - 修复：在使用前初始化responsible_dict
         from app.models.station import ResponsiblePerson
@@ -965,36 +977,50 @@ def expiry_alert():
         station_in_warning = 0
         
         for item in station_items:
-            # ...现有代码（处理微型站物资的逻辑）...
-            # 跳过生产日期为空的物品
-            if not item.production_date:
-                #print(f"跳过无生产日期的物资: {item.item_name}")
-                continue
-            
-            station_with_date += 1
-            #print(f"处理微型站物资: {item.item_name}, 生产日期: {item.production_date}")
-            
             # 检查微型站物资的item_name是否在规则字典中
             item_name = item.item_name
-            
-            # 添加模糊匹配逻辑，可能是命名不完全一致
-            matching_rule = None
-            for rule_name in expiry_rule_dict.keys():
-                if item_name == rule_name or item_name in rule_name or rule_name in item_name:
-                    matching_rule = rule_name
-                    break
-            
+            matching_rule = _match_rule_by_name(item_name)
+
             if matching_rule:
                 station_with_rule += 1
-                # 有效期规则 (年)
-                expiry_years = expiry_rule_dict[matching_rule]
+
+                # 获取区域负责人
+                responsible_person = responsible_dict.get(item.area_code, "未指定负责人")
+
+                # 有效期规则（年），0表示长期
+                expiry_years = float(matching_rule.normal_expiry or 0)
+                if expiry_years == 0:
+                    print(f"物资 '{item_name}' 为长期有效，预警统计中不计入过期/到期")
+                    if show_long_term:
+                        long_term_items.append({
+                            'id': item.id,
+                            'type': '微型站物资',
+                            'area_name': item.area_name,
+                            'area_code': item.area_code,
+                            'location': '未指定',
+                            'name': item.item_name,
+                            'model': item.model or '未指定',
+                            'production_date': item.production_date,
+                            'expiry_date': '长期',
+                            'days_remaining': None,
+                            'expiry_years': 0,
+                            'responsible_person': responsible_person,
+                            'source_table': 'station',
+                            'source_id': item.id,
+                            'operation_type': '微型消防站',
+                            'is_long_term': True
+                        })
+                    continue
+
+                # 非长期项仍需生产日期用于计算
+                if not item.production_date:
+                    continue
+
+                station_with_date += 1
                 
                 # 计算到期日期与剩余天数
                 expiry_date = item.production_date + timedelta(days=int(expiry_years*365))
                 days_remaining = (expiry_date - current_date).days
-                
-                # 获取区域负责人
-                responsible_person = responsible_dict.get(item.area_code, "未指定负责人")
                 
                 # 修改条件：只要小于等于预警天数的都添加（包括已过期的负数天数）
                 if days_remaining <= warning_days:  # 修改这一行，去掉0 <=
@@ -1011,11 +1037,12 @@ def expiry_alert():
                         'production_date': item.production_date,
                         'expiry_date': expiry_date,
                         'days_remaining': days_remaining,
-                        'expiry_years': expiry_years,
+                        'expiry_years': int(expiry_years) if float(expiry_years).is_integer() else expiry_years,
                         'responsible_person': responsible_person,
                         'source_table': 'station',
                         'source_id': item.id,
-                        'operation_type': '微型消防站'  # 添加操作类型字段
+                        'operation_type': '微型消防站',  # 添加操作类型字段
+                        'is_long_term': False
                     })
             else:
                 print(f"警告: 物资 '{item.item_name}' 在有效期规则表中找不到匹配项或标记为长期有效")
@@ -1051,61 +1078,76 @@ def expiry_alert():
         equipment_in_warning = 0
         
         for item in equipment_items:
-            # ...现有代码（处理消防器材的逻辑）...
-            # 跳过生产日期为空的物品
-            if not item.production_date:
-                #print(f"跳过无生产日期的设备: {item.equipment_name}")
-                continue
-            
-            equipment_with_date += 1
-            #print(f"处理消防器材: {item.equipment_name}, 类型: {item.equipment_type}, 生产日期: {item.production_date}")
-            
-            # 注意：这里使用equipment_type查找规则，而微型站使用item_name
+            # 按“器材类型”匹配有效期管理规则（用户要求）
             equipment_type = item.equipment_type
-            
-            # 同样添加模糊匹配逻辑
-            matching_rule = None
-            for rule_name in expiry_rule_dict.keys():
-                if equipment_type == rule_name or equipment_type in rule_name or rule_name in equipment_type:
-                    matching_rule = rule_name
-                    break
-            
+            matching_rule = _match_rule_by_name(equipment_type)
+
             if matching_rule:
                 equipment_with_rule += 1
-                # 有效期规则 (年)
-                expiry_years = expiry_rule_dict[matching_rule]
+
+                # 获取区域负责人
+                responsible_person = responsible_dict.get(item.area_code, "未指定负责人")
+
+                # 有效期规则（年），0表示长期
+                expiry_years = float(matching_rule.normal_expiry or 0)
+                if expiry_years == 0:
+                    print(f"器材类型 '{equipment_type}' 为长期有效，预警统计中不计入过期/到期")
+                    if show_long_term:
+                        long_term_items.append({
+                            'id': item.id,
+                            'type': '消防器材',
+                            'area_name': item.area_name,
+                            'area_code': item.area_code,
+                            'location': f"{item.installation_floor} - {item.installation_location}",
+                            'name': item.equipment_type,
+                            'model': item.model or '未指定',
+                            'production_date': item.production_date,
+                            'expiry_date': '长期',
+                            'days_remaining': None,
+                            'expiry_years': 0,
+                            'responsible_person': responsible_person,
+                            'source_table': 'equipment',
+                            'source_id': item.id,
+                            'operation_type': '灭火器和呼吸器',
+                            'is_long_term': True
+                        })
+                    continue
+
+                # 非长期项仍需生产日期用于计算
+                if not item.production_date:
+                    continue
+
+                equipment_with_date += 1
                 
                 # 计算到期日期与剩余天数
                 expiry_date = item.production_date + timedelta(days=int(expiry_years*365))
                 days_remaining = (expiry_date - current_date).days
                 
-                # 获取区域负责人
-                responsible_person = responsible_dict.get(item.area_code, "未指定负责人")
-                
                 # 修改条件：只要小于等于预警天数的都添加（包括已过期的负数天数）
                 if days_remaining <= warning_days:  # 修改这一行，去掉0 <=
                     equipment_in_warning += 1
-                    print(f"找到到期预警器材: {item.equipment_name}, 剩余天数: {days_remaining}")
-                    # 修改这里：使用equipment_type作为name字段，而不是equipment_name
+                    print(f"找到到期预警器材: {item.equipment_type}, 剩余天数: {days_remaining}")
+                    # 预警名称按器材类型展示
                     expiring_items.append({
                         'id': item.id,
                         'type': '消防器材',
                         'area_name': item.area_name,
                         'area_code': item.area_code,
                         'location': f"{item.installation_floor} - {item.installation_location}",
-                        'name': item.equipment_type,  # 修改这一行，从equipment_name改为equipment_type
+                        'name': item.equipment_type,
                         'model': item.model or '未指定',
                         'production_date': item.production_date,
                         'expiry_date': expiry_date,
                         'days_remaining': days_remaining,
-                        'expiry_years': expiry_years,
+                        'expiry_years': int(expiry_years) if float(expiry_years).is_integer() else expiry_years,
                         'responsible_person': responsible_person,
                         'source_table': 'equipment',
                         'source_id': item.id,
-                        'operation_type': '灭火器和呼吸器'  # 添加操作类型字段
+                        'operation_type': '灭火器和呼吸器',  # 添加操作类型字段
+                        'is_long_term': False
                     })
             else:
-                print(f"警告: 器材类型 '{equipment_type}' 在有效期规则表中找不到匹配项或标记为长期有效")
+                print(f"警告: 器材类型 '{equipment_type}' 在有效期规则表中找不到匹配项")
         
         # 后续的排序、分页、数据处理等代码保持不变
         # ...现有代码...
@@ -1121,40 +1163,54 @@ def expiry_alert():
         print(f"其中: 微型站物资={station_in_warning}, 消防器材={equipment_in_warning}")
         
         # 在应用类型筛选之前应用自定义筛选条件
-        filtered_items = expiring_items
+        filtered_warning_items = list(expiring_items)
+        filtered_long_term_items = list(long_term_items)
         
         # 应用来源类型筛选
         if filter_source:
-            filtered_items = [item for item in filtered_items if item['source_table'] == filter_source]
+            filtered_warning_items = [item for item in filtered_warning_items if item['source_table'] == filter_source]
+            filtered_long_term_items = [item for item in filtered_long_term_items if item['source_table'] == filter_source]
         
         # 应用预警级别筛选
         if filter_level:
             if filter_level == 'expired':
-                filtered_items = [item for item in filtered_items if item['days_remaining'] < 0]
+                filtered_warning_items = [item for item in filtered_warning_items if item['days_remaining'] < 0]
             elif filter_level == 'warning30':
-                filtered_items = [item for item in filtered_items if 0 <= item['days_remaining'] <= 30]
+                filtered_warning_items = [item for item in filtered_warning_items if 0 <= item['days_remaining'] <= 30]
             elif filter_level == 'warning60':
-                filtered_items = [item for item in filtered_items if 30 < item['days_remaining'] <= 60]
+                filtered_warning_items = [item for item in filtered_warning_items if 30 < item['days_remaining'] <= 60]
             elif filter_level == 'warning90':
-                filtered_items = [item for item in filtered_items if 60 < item['days_remaining'] <= 90]
+                filtered_warning_items = [item for item in filtered_warning_items if 60 < item['days_remaining'] <= 90]
+
+            # 长期项没有预警级别，选择级别时不展示长期项
+            filtered_long_term_items = []
         
         # 应用物品/器材名称筛选
         if filter_name:
-            filtered_items = [item for item in filtered_items if item['name'] == filter_name]
+            filtered_warning_items = [item for item in filtered_warning_items if item['name'] == filter_name]
+            filtered_long_term_items = [item for item in filtered_long_term_items if item['name'] == filter_name]
         
         # 应用负责人筛选
         if filter_responsible:
-            filtered_items = [item for item in filtered_items if item['responsible_person'] == filter_responsible]
+            filtered_warning_items = [item for item in filtered_warning_items if item['responsible_person'] == filter_responsible]
+            filtered_long_term_items = [item for item in filtered_long_term_items if item['responsible_person'] == filter_responsible]
         
         # 应用类型筛选（微型站/消防器材）
         if filter_type == 'station':
-            filtered_items = [item for item in filtered_items if item['source_table'] == 'station']
+            filtered_warning_items = [item for item in filtered_warning_items if item['source_table'] == 'station']
+            filtered_long_term_items = [item for item in filtered_long_term_items if item['source_table'] == 'station']
         elif filter_type == 'equipment':
-            filtered_items = [item for item in filtered_items if item['source_table'] == 'equipment']
+            filtered_warning_items = [item for item in filtered_warning_items if item['source_table'] == 'equipment']
+            filtered_long_term_items = [item for item in filtered_long_term_items if item['source_table'] == 'equipment']
+
+        # 仅在开关开启时展示长期项，且不计入预警统计数据
+        filtered_long_term_items.sort(key=lambda x: (x['area_name'], x['name']))
+        filtered_items = filtered_warning_items + (filtered_long_term_items if show_long_term else [])
         
         # 收集所有唯一的物品名称和负责人，用于筛选下拉菜单
-        item_names = sorted(set(item['name'] for item in expiring_items))
-        responsible_persons = sorted(set(item['responsible_person'] for item in expiring_items))
+        all_items_for_filter = expiring_items + (long_term_items if show_long_term else [])
+        item_names = sorted(set(item['name'] for item in all_items_for_filter))
+        responsible_persons = sorted(set(item['responsible_person'] for item in all_items_for_filter))
         
         # 7. 分页处理
         total_items = len(filtered_items)
@@ -1223,7 +1279,8 @@ def expiry_alert():
             has_filters=has_filters,
             item_names=item_names,
             responsible_persons=responsible_persons,
-            filter_source=filter_source  # 新增变量
+            filter_source=filter_source,  # 新增变量
+            show_long_term=show_long_term
         )
     except Exception as e:
         import traceback
@@ -1252,7 +1309,8 @@ def expiry_alert():
             has_filters=False,
             item_names=[],
             responsible_persons=[],
-            filter_source=''  # 错误时也添加这个变量
+            filter_source='',  # 错误时也添加这个变量
+            show_long_term=False
         )
 
 # 导入邮件发送相关模块
@@ -2005,39 +2063,58 @@ def check_expiry_data():
         # 只处理有生产日期的物品并计算剩余天数
         expiring_items = []
         
+        def _normalize_name(value):
+            return str(value).strip().lower() if value is not None else ''
+
+        rule_map = {_normalize_name(rule.item_name): rule for rule in expiry_rules if _normalize_name(rule.item_name)}
+
+        def _match_rule_by_name(target_name):
+            normalized_target = _normalize_name(target_name)
+            if not normalized_target:
+                return None
+            return rule_map.get(normalized_target)
+
         # 微型站物资
         for item in station_items:
             if item.production_date:
-                for rule in expiry_rules:
-                    if item.item_name in rule.item_name or rule.item_name in item.item_name:
-                        expiry_date = item.production_date + timedelta(days=int(rule.normal_expiry*365))
-                        days_remaining = (expiry_date - current_date).days
-                        
-                        # 只添加90天内到期的
-                        if days_remaining <= 90:
-                            expiring_items.append({
-                                'name': item.item_name,
-                                'days_remaining': days_remaining,
-                                'type': '微型站物资'
-                            })
-                        break
+                rule = _match_rule_by_name(item.item_name)
+                if rule:
+                    expiry_years = float(rule.normal_expiry or 0)
+                    # 0=长期，不参与过期/预警统计
+                    if expiry_years == 0:
+                        continue
+
+                    expiry_date = item.production_date + timedelta(days=int(expiry_years * 365))
+                    days_remaining = (expiry_date - current_date).days
+
+                    # 只添加90天内到期的
+                    if days_remaining <= 90:
+                        expiring_items.append({
+                            'name': item.item_name,
+                            'days_remaining': days_remaining,
+                            'type': '微型站物资'
+                        })
         
-        # 消防器材
+        # 消防器材（按器材类型匹配规则）
         for item in equipment_items:
             if item.production_date:
-                for rule in expiry_rules:
-                    if item.equipment_type in rule.item_name or rule.item_name in item.equipment_type:
-                        expiry_date = item.production_date + timedelta(days=int(rule.normal_expiry*365))
-                        days_remaining = (expiry_date - current_date).days
-                        
-                        # 只添加90天内到期的
-                        if days_remaining <= 90:
-                            expiring_items.append({
-                                'name': item.equipment_type,
-                                'days_remaining': days_remaining,
-                                'type': '消防器材'
-                            })
-                        break
+                rule = _match_rule_by_name(item.equipment_type)
+                if rule:
+                    expiry_years = float(rule.normal_expiry or 0)
+                    # 0=长期，不参与过期/预警统计
+                    if expiry_years == 0:
+                        continue
+
+                    expiry_date = item.production_date + timedelta(days=int(expiry_years * 365))
+                    days_remaining = (expiry_date - current_date).days
+
+                    # 只添加90天内到期的
+                    if days_remaining <= 90:
+                        expiring_items.append({
+                            'name': item.equipment_type,
+                            'days_remaining': days_remaining,
+                            'type': '消防器材'
+                        })
         
         # 按剩余天数分类统计
         expired_count = sum(1 for item in expiring_items if item['days_remaining'] < 0)

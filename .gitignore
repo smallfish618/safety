@@ -31,6 +31,8 @@ data/*.db
 data/*.sqlite
 data/*.sqlite3
 data/database.db
+data/backups/
+data/*.xlsx
 
 # 日志文件
 logs/
